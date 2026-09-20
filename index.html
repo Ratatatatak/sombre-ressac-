@@ -6,25 +6,25 @@
 <title>Sombres Ressacs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Barlow+Semi+Condensed:wght@400;500;600&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
 <style>
 :root{
-  --abysse:#0b1318; --ressac:#132530; --brume:#22404e; --voile:#172f3b;
-  --ecume:#dde7e5; --pale:#8ba3ab; --laiton:#c89a4e; --sang:#a8473c;
-  --jade:#5d9b8f; --faible:rgba(200,154,78,.13);
+  --abysse:#0b1318; --ressac:#132530; --voile:#172f3b; --brume:#4f839a; --hairline:#22404e;
+  --ecume:#dde7e5; --pale:#8ba3ab; --laiton:#c89a4e; --sang:#d2705c;
+  --jade:#5d9b8f; --faible:rgba(200,154,78,.13); --sur-accent:var(--abysse);
 }
 :root:not([data-theme="dark"]){
-  --abysse:#dfe5e3; --ressac:#eef2f0; --brume:#b2c1c3; --voile:#e6ebe9;
-  --ecume:#0f1f29; --pale:#4c646e; --laiton:#856112; --sang:#8b2e25;
+  --abysse:#dfe5e3; --ressac:#eef2f0; --voile:#e6ebe9; --brume:#627e83; --hairline:#b2c1c3;
+  --ecume:#0f1f29; --pale:#4c646e; --laiton:#7a570f; --sang:#8b2e25;
   --jade:#2c6b5f; --faible:rgba(133,97,18,.10);
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --abysse:#0b1318; --ressac:#132530; --brume:#22404e; --voile:#172f3b;
-  --ecume:#dde7e5; --pale:#8ba3ab; --laiton:#c89a4e; --sang:#a8473c;
+  --abysse:#0b1318; --ressac:#132530; --voile:#172f3b; --brume:#4f839a; --hairline:#22404e;
+  --ecume:#dde7e5; --pale:#8ba3ab; --laiton:#c89a4e; --sang:#d2705c;
   --jade:#5d9b8f; --faible:rgba(200,154,78,.13);}}
 :root[data-theme="dark"]{
-  --abysse:#0b1318; --ressac:#132530; --brume:#22404e; --voile:#172f3b;
-  --ecume:#dde7e5; --pale:#8ba3ab; --laiton:#c89a4e; --sang:#a8473c;
+  --abysse:#0b1318; --ressac:#132530; --voile:#172f3b; --brume:#4f839a; --hairline:#22404e;
+  --ecume:#dde7e5; --pale:#8ba3ab; --laiton:#c89a4e; --sang:#d2705c;
   --jade:#5d9b8f; --faible:rgba(200,154,78,.13);
 }
 *{box-sizing:border-box}
@@ -42,7 +42,8 @@ h1,h2,h3{font-weight:700; margin:0}
 /* ---------- ecran creation ---------- */
 #creation{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 20px}
 .carte-creation{max-width:640px; width:100%}
-.titre{font-size:clamp(40px,10vw,84px); line-height:.92; letter-spacing:-.01em; margin-bottom:6px}
+.titre{font-family:"UnifrakturMaguntia","Amiri",serif; font-weight:400;
+  font-size:clamp(40px,10vw,84px); line-height:.92; letter-spacing:-.01em; margin-bottom:6px}
 .titre em{font-style:normal; color:var(--laiton)}
 .exergue{color:var(--pale); font-size:18px; max-width:46ch; margin:0 0 30px}
 .des{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:22px}
@@ -55,7 +56,7 @@ h1,h2,h3{font-weight:700; margin:0}
 input[type=text]{width:100%; background:var(--voile); border:1px solid var(--brume);
   color:var(--ecume); padding:10px 13px; font-size:16px; border-radius:2px;
   font-family:"Barlow Semi Condensed",sans-serif; margin-bottom:14px}
-.btn{background:var(--laiton); color:var(--abysse); border:1px solid var(--laiton);
+.btn{background:var(--laiton); color:var(--sur-accent); border:1px solid var(--laiton);
   padding:10px 22px; font-size:16.5px; font-weight:600; border-radius:2px}
 .btn:disabled{opacity:.4; cursor:default}
 .btn.creux{background:none; color:var(--laiton)}
@@ -95,7 +96,7 @@ input[type=text]{width:100%; background:var(--voile); border:1px solid var(--bru
 /* ---------- jeu ---------- */
 #jeu{display:none}
 #jeu.on{display:block}
-.barre{border-bottom:1px solid var(--brume); padding:10px 20px; display:flex;
+.barre{border-bottom:1px solid var(--hairline); padding:10px 20px; display:flex;
   gap:14px; align-items:center; flex-wrap:wrap; position:sticky; top:0;
   background:var(--abysse); z-index:20}
 .barre .marque{font-weight:700; font-size:20px}
@@ -131,13 +132,13 @@ input[type=text]{width:100%; background:var(--voile); border:1px solid var(--bru
 .eff{background:var(--faible); border:1px solid var(--laiton); color:var(--laiton);
   padding:4px 11px; font-size:14.5px; border-radius:2px}
 .eff.fait{opacity:.4; cursor:default; text-decoration:line-through}
-.eff.neg{border-color:var(--sang); color:var(--sang); background:rgba(168,71,60,.10)}
+.eff.neg{border-color:var(--sang); color:var(--sang); background:rgba(210,112,92,.10)}
 .avis{border-left:3px solid var(--jade); background:var(--faible); padding:9px 14px;
   font-family:"Barlow Semi Condensed",sans-serif; font-size:15px; margin-bottom:14px;
   border-radius:2px}
 .avis.alerte{border-left-color:var(--sang)}
 .journal{font-family:"Barlow Semi Condensed",sans-serif; font-size:15px;
-  border-left:2px solid var(--brume); padding-left:14px; margin-bottom:14px; color:var(--pale)}
+  border-left:2px solid var(--hairline); padding-left:14px; margin-bottom:14px; color:var(--pale)}
 .journal div{margin-bottom:2px}
 .journal b{color:var(--ecume); font-weight:600}
 .journal .g{color:var(--jade)} .journal .r{color:var(--sang)}
@@ -148,7 +149,7 @@ input[type=text]{width:100%; background:var(--voile); border:1px solid var(--bru
   font-family:"Barlow Semi Condensed",sans-serif; font-size:15px}
 @media(max-width:1000px){.feuille{position:static; max-height:none}}
 .feuille h2{font-size:16px; color:var(--laiton); margin-bottom:10px}
-.bloc-f{border-top:1px solid var(--voile); padding-top:11px; margin-top:11px}
+.bloc-f{border-top:1px solid var(--hairline); padding-top:11px; margin-top:11px}
 .bloc-f h4{font-size:13.5px; color:var(--pale); font-weight:500; margin:0 0 6px}
 .ligne{display:flex; align-items:center; gap:7px; margin-bottom:5px}
 .ligne .n{flex:1}
@@ -198,7 +199,7 @@ textarea{width:100%; background:var(--voile); border:1px solid var(--brume); col
 .vs{color:var(--pale); font-family:"Barlow Semi Condensed",sans-serif; font-size:14px}
 .fa{display:grid; grid-template-columns:1fr 1fr; gap:12px; text-align:center;
   font-family:"Barlow Semi Condensed",sans-serif; margin-bottom:14px}
-.fa div{border:1px solid var(--voile); padding:7px; border-radius:2px}
+.fa div{border:1px solid var(--hairline); padding:7px; border-radius:2px}
 .fa .t{font-size:13px; color:var(--pale)}
 .fa .r{font-size:30px; font-weight:600; font-variant-numeric:tabular-nums}
 .verdict{text-align:center; font-family:"Barlow Semi Condensed",sans-serif; font-size:17px;
@@ -208,7 +209,8 @@ textarea{width:100%; background:var(--voile); border:1px solid var(--brume); col
 select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume);
   font-family:"Barlow Semi Condensed",sans-serif; font-size:15px; padding:5px 8px; border-radius:2px}
 .fin{text-align:center; padding:20px 0}
-.fin .gd{font-size:clamp(30px,6vw,46px); line-height:1.1; margin-bottom:10px}
+.fin .gd{font-family:"UnifrakturMaguntia","Amiri",serif; font-weight:400;
+  font-size:clamp(32px,6vw,46px); line-height:1.05; margin-bottom:10px}
 .fin .gd.mort{color:var(--sang)} .fin .gd.vict{color:var(--laiton)}
 .aide{color:var(--pale); font-family:"Barlow Semi Condensed",sans-serif; font-size:14.5px}
 .hist-item{border:1px solid var(--brume); border-left:3px solid var(--brume); border-radius:2px;
