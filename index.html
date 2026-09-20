@@ -67,14 +67,13 @@ input[type=text]{width:100%; background:var(--voile); border:1px solid var(--bru
 .mini:disabled{opacity:.35; cursor:default}
 
 /* ---------- barre de compte ---------- */
-.barre-compte{position:fixed; top:10px; right:12px; z-index:60; display:flex;
-  align-items:center; gap:10px; font-size:13.5px}
+.barre-compte{display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap;
+  gap:8px 10px; font-size:13.5px; padding:8px 16px; border-bottom:1px solid var(--hairline)}
 .compte-mail{color:var(--pale); max-width:34vw; overflow:hidden; text-overflow:ellipsis;
   white-space:nowrap; display:inline-block; vertical-align:middle}
 .compte-statut{color:var(--pale); font-size:12.5px}
-#compte-connecte{display:flex; align-items:center; gap:8px}
-@media(max-width:640px){.barre-compte{position:static; justify-content:flex-end;
-  padding:8px 14px 0}}
+#compte-connecte{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+@media(max-width:640px){.compte-mail{max-width:56vw}}
 
 /* ---------- tutoriel ---------- */
 #tutoriel{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 20px}
@@ -224,6 +223,10 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
 .hist-extrait{font-family:"Amiri",serif; font-style:italic; color:var(--pale); font-size:15px;
   margin-bottom:6px; line-height:1.5}
 .hist-stats{color:var(--pale); font-size:13.5px}
+.hist-detail{border-top:1px solid var(--hairline); margin-top:9px; padding-top:9px}
+.hist-detail h4{font-size:13px; color:var(--pale); font-weight:500; margin:0 0 4px}
+.hist-detail h4:not(:first-child){margin-top:10px}
+.hist-parcours{font-variant-numeric:tabular-nums; font-size:14px; line-height:1.6}
 .badge{font-family:"Barlow Semi Condensed",sans-serif; font-size:13px; border:1px solid var(--brume);
   color:var(--pale); padding:2px 9px; border-radius:2px; display:inline-block}
 .badge.mort{color:var(--sang); border-color:var(--sang)}
@@ -267,6 +270,16 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
 </style>
 </head>
 <body>
+
+<!-- ======================= COMPTE ======================= -->
+<div class="barre-compte c" id="barre-compte">
+  <button class="mini" id="btn-ouvrir-connexion">Se connecter</button>
+  <span id="compte-connecte" style="display:none">
+    <span id="compte-email" class="compte-mail"></span>
+    <button class="mini" id="btn-deconnexion">Déconnexion</button>
+  </span>
+  <span id="compte-statut" class="compte-statut" aria-live="polite"></span>
+</div>
 
 <!-- ======================= CREATION ======================= -->
 <section id="creation">
@@ -314,6 +327,7 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
  <div class="barre">
    <div class="marque">Sombres <em>Ressacs</em></div>
    <button class="mini" data-act="voir-carte">🗺️ Carte</button>
+   <button class="mini" data-act="voir-histoire">📜 Historique</button>
    <div class="jauges c" id="jauges"></div>
  </div>
  <div class="plateau">
@@ -328,16 +342,6 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
    <aside class="feuille" id="feuille"></aside>
  </div>
 </section>
-
-<!-- ======================= COMPTE ======================= -->
-<div class="barre-compte c" id="barre-compte">
-  <button class="mini" id="btn-ouvrir-connexion">Se connecter</button>
-  <span id="compte-connecte" style="display:none">
-    <span id="compte-email" class="compte-mail"></span>
-    <button class="mini" id="btn-deconnexion">Déconnexion</button>
-  </span>
-  <span id="compte-statut" class="compte-statut" aria-live="polite"></span>
-</div>
 
 <!-- ======================= MODALES ======================= -->
 <div class="fond" id="fond-combat"><div class="modale" id="m-combat"></div></div>
@@ -630,7 +634,9 @@ function finirPartie(resultat, cause){
     extrait: dernier.slice(-260),
     date: new Date().toISOString(),
     habilete: E.habilete.initiale, endurance: E.endurance.initiale, chance: E.chance.initiale,
-    or: E.or, provisions: E.provisions, visites: E.visites.length
+    or: E.or, provisions: E.provisions, visites: E.visites.length,
+    parcours: E.visites.slice(),
+    journal: E.journal.slice().reverse()
   });
   if(resultat==='mort') E.sombresDestins.push({paragraphe:E.paragraphe, cause});
 }
@@ -1072,11 +1078,39 @@ function fermerCombat(){
 /* ============================================================
    MODALE HISTORIQUE — le souvenir de toutes vos lectures
    ============================================================ */
+/* pieges recurrents : paragraphes ou plusieurs tentatives se sont soldees
+   par une mort, pour reperer d'un coup d'oeil les choix a ne plus reproduire */
+function analyserPieges(hist){
+  const morts = hist.filter(x=>x.resultat==='mort');
+  const compte = {};
+  morts.forEach(x=>{ (compte[x.paragraphe]=compte[x.paragraphe]||[]).push(x); });
+  return Object.entries(compte).filter(([,l])=>l.length>1)
+    .sort((a,b)=>b[1].length-a[1].length).slice(0,5);
+}
 function rendreEntreeHistoire(x){
   const mort = x.resultat==='mort';
   const d = new Date(x.date);
   const dateFR = isNaN(d) ? '' : d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'})
     + ' à ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const ouvert = window.__histOuvert && window.__histOuvert.has(String(x.id));
+  const aDetail = Array.isArray(x.parcours) || Array.isArray(x.journal);
+  let detail = '';
+  if(ouvert){
+    if(aDetail){
+      const parcours = (x.parcours||[]).join(' → ') || '—';
+      const journal = (x.journal||[]).map(e=>`<div class="${e.c||''}">${esc(e.t)}</div>`).join('')
+        || '<div class="aide">Aucun évènement de jeu consigné pour cette tentative.</div>';
+      detail = `<div class="hist-detail">
+        <h4>Parcours (paragraphes traversés)</h4>
+        <p class="hist-parcours">${esc(parcours)}</p>
+        <h4>Choix et évènements, dans l’ordre</h4>
+        <div class="journal">${journal}</div>
+      </div>`;
+    } else {
+      detail = `<div class="hist-detail"><p class="aide">Tentative enregistrée avant le suivi détaillé
+        du parcours : seul ce résumé est disponible.</p></div>`;
+    }
+  }
   return `<div class="hist-item ${mort?'mort':'victoire'}">
     <div class="hist-head"><b>${esc(x.nom||'Sans nom')}</b>
       <span class="badge ${mort?'mort':'victoire'}">${mort?'Fin mortelle':'Victoire'}</span>
@@ -1084,6 +1118,9 @@ function rendreEntreeHistoire(x){
     ${x.extrait?`<div class="hist-extrait">« ${esc(x.extrait)} »</div>`:''}
     <div class="hist-stats">Paragraphe ${x.paragraphe} · Habileté ${x.habilete} · Endurance ${x.endurance}
       · Chance ${x.chance} · ${x.visites} paragraphe${x.visites>1?'s':''} lus</div>
+    <button class="mini" style="margin-top:7px" data-act="hist-detail" data-id="${x.id}">
+      ${ouvert?'Masquer le parcours':'Analyser le parcours'}</button>
+    ${detail}
   </div>`;
 }
 function ouvrirHistoire(){
@@ -1097,9 +1134,18 @@ function ouvrirHistoire(){
   } else {
     const morts = hist.filter(x=>x.resultat==='mort').length;
     const victoires = hist.length - morts;
+    const pieges = analyserPieges(hist);
     h += `<p class="aide">${hist.length} tentative${hist.length>1?'s':''} enregistrée${hist.length>1?'s':''}
-      — ${victoires} victoire${victoires>1?'s':''}, ${morts} fin${morts>1?'s':''} funeste${morts>1?'s':''}.</p>
-      <div style="max-height:54vh;overflow-y:auto;margin:14px 0">`
+      — ${victoires} victoire${victoires>1?'s':''}, ${morts} fin${morts>1?'s':''} funeste${morts>1?'s':''}.</p>`;
+    if(pieges.length){
+      h += `<div class="avis alerte" style="margin-bottom:14px">
+        <b>Pièges récurrents</b> — paragraphes qui vous ont déjà coûté la vie plusieurs fois,
+        à aborder différemment la prochaine fois :
+        <ul style="margin:6px 0 0 18px;padding:0">
+          ${pieges.map(([para,l])=>`<li>Paragraphe ${esc(para)} — ${l.length} morts</li>`).join('')}
+        </ul></div>`;
+    }
+    h += `<div style="max-height:54vh;overflow-y:auto;margin:14px 0">`
       + hist.map(rendreEntreeHistoire).join('') + `</div>
       <div class="rangee" style="justify-content:space-between">
         <button class="mini" data-act="vider-histoire">Vider l’historique</button>
@@ -1396,6 +1442,13 @@ document.addEventListener('click', e=>{
       info('Votre parcours', E.visites.join(' → ')); break;
     case 'voir-histoire': ouvrirHistoire(); break;
     case 'fermer-histoire': $('fond-histoire').classList.remove('on'); break;
+    case 'hist-detail': {
+      const id = b.dataset.id;
+      window.__histOuvert = window.__histOuvert || new Set();
+      if(window.__histOuvert.has(id)) window.__histOuvert.delete(id); else window.__histOuvert.add(id);
+      ouvrirHistoire();
+      break;
+    }
     case 'vider-histoire':
       confirmerAction('Vider l’historique',
         'Effacer définitivement le souvenir de toutes vos aventures précédentes ?',
