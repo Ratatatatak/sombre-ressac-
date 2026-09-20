@@ -182,6 +182,7 @@ textarea{width:100%; background:var(--voile); border:1px solid var(--brume); col
 .fond{position:fixed; inset:0; background:rgba(4,9,12,.82); display:none;
   align-items:center; justify-content:center; padding:18px; z-index:100}
 #fond-info{z-index:110}
+#fond-repere{z-index:110}
 .fond.on{display:flex}
 .modale{background:var(--abysse); border:1px solid var(--brume); border-radius:2px;
   max-width:620px; width:100%; max-height:92vh; overflow-y:auto; padding:22px}
@@ -227,6 +228,31 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
   color:var(--pale); padding:2px 9px; border-radius:2px; display:inline-block}
 .badge.mort{color:var(--sang); border-color:var(--sang)}
 .badge.victoire{color:var(--laiton); border-color:var(--laiton)}
+
+/* --- carte --- */
+.modale-carte{max-width:960px}
+.dot-lieu{background:var(--laiton)}
+.dot-danger{background:var(--sang)}
+.dot-tresor{background:var(--jade)}
+.dot-note{background:var(--pale)}
+.carte-conteneur{position:relative; width:100%; border:1px solid var(--brume);
+  border-radius:2px; cursor:crosshair; overflow:hidden; -webkit-user-select:none; user-select:none}
+.carte-conteneur img{display:block; width:100%; height:auto}
+.pin{position:absolute; width:20px; height:20px; margin:-18px 0 0 -10px; border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg); border:2px solid var(--abysse); cursor:pointer;
+  box-shadow:0 1px 4px rgba(0,0,0,.55)}
+.pin:hover{filter:brightness(1.2)}
+.carte-legende{display:flex; gap:14px; flex-wrap:wrap; font-family:"Barlow Semi Condensed",sans-serif;
+  font-size:13px; color:var(--pale); margin:12px 0}
+.carte-legende span{display:inline-flex; align-items:center; gap:5px}
+.dot{width:10px; height:10px; border-radius:50%; display:inline-block; flex-shrink:0}
+.repere-liste{max-height:24vh; overflow-y:auto; margin-top:4px}
+.repere-item{display:flex; align-items:center; gap:9px; border:1px solid var(--brume);
+  border-radius:2px; padding:6px 10px; margin-bottom:6px;
+  font-family:"Barlow Semi Condensed",sans-serif; font-size:14px; cursor:pointer; background:none; width:100%}
+.repere-item:hover{border-color:var(--laiton)}
+.repere-item .txt{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; color:var(--ecume)}
+.repere-item .pnum-mini{color:var(--pale); font-size:12px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -277,6 +303,7 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
 <section id="jeu">
  <div class="barre">
    <div class="marque">Sombres <em>Ressacs</em></div>
+   <button class="mini" data-act="voir-carte">🗺️ Carte</button>
    <div class="jauges c" id="jauges"></div>
  </div>
  <div class="plateau">
@@ -306,6 +333,8 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
 <div class="fond" id="fond-combat"><div class="modale" id="m-combat"></div></div>
 <div class="fond" id="fond-info"><div class="modale" id="m-info"></div></div>
 <div class="fond" id="fond-histoire"><div class="modale" id="m-histoire"></div></div>
+<div class="fond" id="fond-carte"><div class="modale modale-carte" id="m-carte"></div></div>
+<div class="fond" id="fond-repere"><div class="modale" id="m-repere"></div></div>
 <div class="fond" id="fond-auth"><div class="modale" id="m-auth">
   <h2 id="auth-titre">Se connecter</h2>
   <p class="aide" style="margin-bottom:16px">Créez un compte pour retrouver votre Feuille d’Aventure et l’historique de vos parties sur n’importe quel appareil.</p>
@@ -459,6 +488,7 @@ function etatNeuf(){
     effetsTemporaires:[], effetsPermanents:[],
     flags:{}, secrets:[], notes:'',
     visites:[], journal:[], effetsAppliques:{},
+    carte:{annotations:[]},
     retourSort:null,          // pile pour « le sort n'a pas eu d'effet »
     pileNav:[],               // historique de navigation, pour le bouton Précédent
     sombresDestins:[], termine:null,
@@ -507,6 +537,16 @@ const R = {
     const plafond = Math.min(3, a.potentiel);
     if(a.bc < plafond){ a.bc++; noter(`Maîtrise du ${nom} : Bonus de Combat ${a.bc>=0?'+':''}${a.bc}`,'g'); return a.bc; }
     return null;
+  },
+  modifierBC(nom, delta){
+    const a = E.armes.find(x=>x.nom===nom);
+    if(!a) return null;
+    const plafond = Math.min(3, a.potentiel);
+    const plancher = -a.potentiel;
+    const reel = Math.max(plancher, Math.min(plafond, a.bc + delta)) - a.bc;
+    a.bc += reel;
+    if(reel!==0) noter(`À la main : Bonus de Combat du ${nom} ${a.bc>=0?'+':''}${a.bc}`, reel>0?'g':'r');
+    return a.bc;
   },
   ajouterArme(nom, potentiel){
     if(E.armes.some(a=>a.nom===nom)){ noter(`${nom} : entraînement déjà consigné`); }
@@ -846,7 +886,9 @@ function rendreFeuille(){
   h += `<div class="bloc-f"><h4>Maîtrise des armes</h4>`
     + E.armes.map(a=>`<div class="arme ${a.nom===E.armeEquipee?'equipee':''}">
         <span style="flex:1">${esc(a.nom)} <span style="color:var(--pale)">(${a.potentiel})</span></span>
+        <button class="pm" data-act="mod-bc" data-n="${esc(a.nom)}" data-d="-1" title="Diminuer le Bonus de Combat" ${a.bc<=-a.potentiel?'disabled':''}>−</button>
         <span class="bc num">${a.bc>=0?'+':''}${a.bc}</span>
+        <button class="pm" data-act="mod-bc" data-n="${esc(a.nom)}" data-d="1" title="Augmenter le Bonus de Combat" ${a.bc>=Math.min(3,a.potentiel)?'disabled':''}>+</button>
         <button class="pm" data-act="equiper" data-n="${esc(a.nom)}" title="Équiper">${a.nom===E.armeEquipee?'✓':'○'}</button>
       </div>`).join('')
     + `<div class="arme ${E.armeEquipee===null?'equipee':''}"><span style="flex:1">Mains nues</span>
@@ -1057,6 +1099,73 @@ function ouvrirHistoire(){
   $('m-histoire').innerHTML = h;
   $('fond-histoire').classList.add('on');
 }
+
+/* ---------- carte annotee ---------- */
+const TYPES_REPERE = {
+  lieu:   {label:'Lieu',   dot:'dot-lieu'},
+  danger: {label:'Danger', dot:'dot-danger'},
+  tresor: {label:'Trésor', dot:'dot-tresor'},
+  note:   {label:'Note',   dot:'dot-note'},
+};
+function rendreCarte(){
+  const annots = E.carte.annotations;
+  const pins = annots.map(a=>{
+    const t = TYPES_REPERE[a.type] || TYPES_REPERE.note;
+    return `<div class="pin ${t.dot}" style="left:${a.x}%;top:${a.y}%"
+      data-act="ouvrir-repere" data-id="${a.id}" title="${esc(a.titre)}"></div>`;
+  }).join('');
+  const legende = Object.values(TYPES_REPERE).map(t=>
+    `<span><i class="dot ${t.dot}"></i>${t.label}</span>`).join('');
+  const liste = annots.length
+    ? `<div class="repere-liste">` + annots.slice().sort((a,b)=>a.paragraphe-b.paragraphe).map(a=>{
+        const t = TYPES_REPERE[a.type] || TYPES_REPERE.note;
+        return `<button class="repere-item" data-act="ouvrir-repere" data-id="${a.id}">
+          <i class="dot ${t.dot}"></i><span class="txt">${esc(a.titre)}</span>
+          <span class="pnum-mini num">§${a.paragraphe}</span></button>`;
+      }).join('') + `</div>`
+    : `<p class="aide">Cliquez n’importe où sur la carte pour poser votre premier repère.</p>`;
+  $('m-carte').innerHTML = `<h2>Carte d’Osmanlie</h2>
+    <p class="aide">Notez les lieux traversés, les dangers repérés ou les secrets appris au fil de votre
+      périple : cliquez sur la carte à l’endroit voulu pour ajouter un repère.</p>
+    <div class="carte-conteneur" id="carte-conteneur">
+      <img src="carte-osmanlie.webp" alt="Carte de l’Osmanlie" draggable="false">
+      ${pins}
+    </div>
+    <div class="carte-legende">${legende}</div>
+    ${liste}
+    <div class="rangee" style="justify-content:flex-end;margin-top:14px">
+      <button class="btn" data-act="fermer-carte">Fermer</button>
+    </div>`;
+  $('carte-conteneur').addEventListener('click', e=>{
+    if(e.target.closest('.pin')) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = Math.min(100, Math.max(0, (e.clientX-r.left)/r.width*100));
+    const y = Math.min(100, Math.max(0, (e.clientY-r.top)/r.height*100));
+    ouvrirRepere(null, {x, y});
+  });
+}
+function ouvrirCarte(){ rendreCarte(); $('fond-carte').classList.add('on'); }
+function ouvrirRepere(id, coords){
+  const annot = id ? E.carte.annotations.find(a=>a.id===id) : null;
+  const val = annot || {type:'lieu', titre:'', note:'', x:coords.x, y:coords.y, paragraphe:E.paragraphe};
+  const options = Object.entries(TYPES_REPERE).map(([k,t])=>
+    `<option value="${k}" ${val.type===k?'selected':''}>${t.label}</option>`).join('');
+  $('m-repere').innerHTML = `<h2>${annot ? 'Modifier le repère' : 'Nouveau repère'}</h2>
+    <select id="repere-type" class="c" style="margin-bottom:10px">${options}</select>
+    <input type="text" id="repere-titre" class="c" maxlength="60"
+      placeholder="Nom du lieu ou du repère" value="${esc(val.titre)}">
+    <textarea id="repere-note" placeholder="Ce que vous savez, ce qu’il s’est passé…">${esc(val.note)}</textarea>
+    <div class="rangee" style="justify-content:space-between;margin-top:12px">
+      ${annot ? `<button class="mini" data-act="suppr-repere" data-id="${annot.id}">Supprimer</button>` : `<span></span>`}
+      <div class="rangee">
+        <button class="mini" data-act="fermer-repere">Annuler</button>
+        <button class="btn" data-act="sauver-repere" data-id="${annot?annot.id:''}">Enregistrer</button>
+      </div>
+    </div>`;
+  window.__repereCoords = {x:val.x, y:val.y, paragraphe:val.paragraphe};
+  $('fond-repere').classList.add('on');
+  const champ = $('repere-titre'); if(champ) champ.focus();
+}
 function actualiserAccueilHistorique(){
   const el = $('resume-historique');
   if(!el) return;
@@ -1170,6 +1279,7 @@ document.addEventListener('click', e=>{
     case 'or': R.or(d,'À la main :'); sauver(); rendre(); break;
     case 'prov': E.provisions=Math.max(0,E.provisions+d); sauver(); rendre(); break;
     case 'equiper': E.armeEquipee = b.dataset.n || null; sauver(); rendre(); break;
+    case 'mod-bc': R.modifierBC(b.dataset.n, d); sauver(); rendre(); break;
     case 'jeter': R.retirerObjet(i); sauver(); rendre(); break;
     case 'sort': R.lancerSort(i); break;
     case 'nouvel-objet':
@@ -1213,12 +1323,40 @@ document.addEventListener('click', e=>{
     case 'recommencer':
       confirmerAction('Recommencer', 'Abandonner cette partie et repartir de zéro ?', reinitialiserPartie);
       break;
+    case 'voir-carte': ouvrirCarte(); break;
+    case 'fermer-carte': $('fond-carte').classList.remove('on'); break;
+    case 'ouvrir-repere': ouvrirRepere(b.dataset.id, null); break;
+    case 'fermer-repere': $('fond-repere').classList.remove('on'); break;
+    case 'sauver-repere': {
+      const titre = ($('repere-titre').value||'').trim();
+      if(!titre){ $('repere-titre').focus(); break; }
+      const note = $('repere-note').value||'';
+      const type = $('repere-type').value||'note';
+      const idExist = b.dataset.id;
+      const existante = idExist && E.carte.annotations.find(x=>x.id===idExist);
+      if(existante){ existante.titre=titre; existante.note=note; existante.type=type; }
+      else E.carte.annotations.push({id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+        x:window.__repereCoords.x, y:window.__repereCoords.y,
+        paragraphe:window.__repereCoords.paragraphe, type, titre, note});
+      sauver();
+      $('fond-repere').classList.remove('on');
+      rendreCarte();
+      break;
+    }
+    case 'suppr-repere':
+      E.carte.annotations = E.carte.annotations.filter(x=>x.id!==b.dataset.id);
+      sauver();
+      $('fond-repere').classList.remove('on');
+      rendreCarte();
+      break;
   }
 });
 document.querySelectorAll('.fond').forEach(f=>f.addEventListener('click', e=>{
   if(e.target===f && f.id==='fond-info'){ f.classList.remove('on'); window.__okInfo=null; window.__siOui=null; }
   if(e.target===f && f.id==='fond-histoire'){ f.classList.remove('on'); }
   if(e.target===f && f.id==='fond-auth'){ f.classList.remove('on'); }
+  if(e.target===f && f.id==='fond-carte'){ f.classList.remove('on'); }
+  if(e.target===f && f.id==='fond-repere'){ f.classList.remove('on'); }
 }));
 document.addEventListener('keydown', e=>{
   if(e.key==='Enter' && $('fond-info').classList.contains('on')) validerInfo();
