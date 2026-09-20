@@ -237,11 +237,21 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
 .dot-note{background:var(--pale)}
 .carte-conteneur{position:relative; width:100%; border:1px solid var(--brume);
   border-radius:2px; cursor:crosshair; overflow:hidden; -webkit-user-select:none; user-select:none}
-.carte-conteneur img{display:block; width:100%; height:auto}
+.carte-conteneur img{display:block; width:100%; height:auto; -webkit-user-drag:none}
+.carte-conteneur canvas{position:absolute; inset:0; width:100%; height:100%;
+  pointer-events:none; touch-action:none}
+.carte-conteneur.mode-dessin canvas{pointer-events:auto}
+.carte-conteneur.mode-dessin .pin{pointer-events:none}
 .pin{position:absolute; width:20px; height:20px; margin:-18px 0 0 -10px; border-radius:50% 50% 50% 0;
   transform:rotate(-45deg); border:2px solid var(--abysse); cursor:pointer;
   box-shadow:0 1px 4px rgba(0,0,0,.55)}
 .pin:hover{filter:brightness(1.2)}
+.carte-outils{margin-bottom:10px; row-gap:8px}
+.mini.actif{background:var(--laiton); color:var(--sur-accent,var(--abysse)); border-color:var(--laiton)}
+.dessin-couleurs{display:inline-flex; gap:6px; align-items:center; margin:0 4px}
+.pastille-couleur{width:20px; height:20px; border-radius:50%; border:2px solid transparent;
+  padding:0; cursor:pointer}
+.pastille-couleur.sel{border-color:var(--ecume)}
 .carte-legende{display:flex; gap:14px; flex-wrap:wrap; font-family:"Barlow Semi Condensed",sans-serif;
   font-size:13px; color:var(--pale); margin:12px 0}
 .carte-legende span{display:inline-flex; align-items:center; gap:5px}
@@ -488,7 +498,7 @@ function etatNeuf(){
     effetsTemporaires:[], effetsPermanents:[],
     flags:{}, secrets:[], notes:'',
     visites:[], journal:[], effetsAppliques:{},
-    carte:{annotations:[]},
+    carte:{annotations:[], traits:[]},
     retourSort:null,          // pile pour « le sort n'a pas eu d'effet »
     pileNav:[],               // historique de navigation, pour le bouton Précédent
     sombresDestins:[], termine:null,
@@ -1107,8 +1117,17 @@ const TYPES_REPERE = {
   tresor: {label:'Trésor', dot:'dot-tresor'},
   note:   {label:'Note',   dot:'dot-note'},
 };
+const COULEURS_DESSIN = ['#c89a4e', '#a8473c', '#5d9b8f', '#dde7e5', '#1b2a33'];
+function assurerCarte(){
+  if(!E.carte) E.carte = {annotations:[], traits:[]};
+  if(!E.carte.annotations) E.carte.annotations = [];
+  if(!E.carte.traits) E.carte.traits = [];
+}
 function rendreCarte(){
+  assurerCarte();
   const annots = E.carte.annotations;
+  const modeDessin = window.__carteMode === 'dessin';
+  const couleur = window.__dessinCouleur || COULEURS_DESSIN[0];
   const pins = annots.map(a=>{
     const t = TYPES_REPERE[a.type] || TYPES_REPERE.note;
     return `<div class="pin ${t.dot}" style="left:${a.x}%;top:${a.y}%"
@@ -1126,9 +1145,19 @@ function rendreCarte(){
     : `<p class="aide">Cliquez n’importe où sur la carte pour poser votre premier repère.</p>`;
   $('m-carte').innerHTML = `<h2>Carte d’Osmanlie</h2>
     <p class="aide">Notez les lieux traversés, les dangers repérés ou les secrets appris au fil de votre
-      périple : cliquez sur la carte à l’endroit voulu pour ajouter un repère.</p>
-    <div class="carte-conteneur" id="carte-conteneur">
+      périple, ou dessinez directement sur la carte votre itinéraire.</p>
+    <div class="carte-outils rangee">
+      <button class="mini ${modeDessin?'':'actif'}" data-act="mode-repere">📍 Repères</button>
+      <button class="mini ${modeDessin?'actif':''}" data-act="mode-dessin">✏️ Dessiner</button>
+      ${modeDessin ? `<span class="dessin-couleurs">${COULEURS_DESSIN.map(c=>
+          `<button class="pastille-couleur ${c===couleur?'sel':''}" style="background:${c}"
+            data-act="choix-couleur" data-c="${c}" title="${c}"></button>`).join('')}</span>
+        <button class="mini" data-act="annuler-trait">↩ Annuler le trait</button>
+        <button class="mini" data-act="effacer-dessin">Effacer le dessin</button>` : ''}
+    </div>
+    <div class="carte-conteneur ${modeDessin?'mode-dessin':''}" id="carte-conteneur">
       <img src="carte-osmanlie.webp" alt="Carte de l’Osmanlie" draggable="false">
+      <canvas id="carte-canvas"></canvas>
       ${pins}
     </div>
     <div class="carte-legende">${legende}</div>
@@ -1136,15 +1165,74 @@ function rendreCarte(){
     <div class="rangee" style="justify-content:flex-end;margin-top:14px">
       <button class="btn" data-act="fermer-carte">Fermer</button>
     </div>`;
-  $('carte-conteneur').addEventListener('click', e=>{
+
+  const cont = $('carte-conteneur');
+  const canvas = $('carte-canvas');
+  const img = cont.querySelector('img');
+  const ctx = canvas.getContext('2d');
+  let traitCourant = null;
+
+  function tracerTrait(t){
+    if(t.points.length<2) return;
+    ctx.beginPath();
+    ctx.strokeStyle = t.couleur; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    t.points.forEach((p,i)=>{
+      const x = p.x/100*canvas.width, y = p.y/100*canvas.height;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  }
+  function redessiner(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    E.carte.traits.forEach(tracerTrait);
+    if(traitCourant) tracerTrait(traitCourant);
+  }
+  function ajusterCanvas(){
+    const r = cont.getBoundingClientRect();
+    canvas.width = r.width; canvas.height = r.height;
+    redessiner();
+  }
+  if(img.complete) ajusterCanvas(); else img.addEventListener('load', ajusterCanvas);
+
+  cont.addEventListener('click', e=>{
+    if(modeDessin) return;
     if(e.target.closest('.pin')) return;
     const r = e.currentTarget.getBoundingClientRect();
     const x = Math.min(100, Math.max(0, (e.clientX-r.left)/r.width*100));
     const y = Math.min(100, Math.max(0, (e.clientY-r.top)/r.height*100));
     ouvrirRepere(null, {x, y});
   });
+
+  const posRelative = e=>{
+    const r = canvas.getBoundingClientRect();
+    return {x:Math.min(100,Math.max(0,(e.clientX-r.left)/r.width*100)),
+            y:Math.min(100,Math.max(0,(e.clientY-r.top)/r.height*100))};
+  };
+  canvas.addEventListener('pointerdown', e=>{
+    if(!modeDessin) return;
+    canvas.setPointerCapture(e.pointerId);
+    traitCourant = {points:[posRelative(e)], couleur};
+  });
+  canvas.addEventListener('pointermove', e=>{
+    if(!traitCourant) return;
+    traitCourant.points.push(posRelative(e));
+    redessiner();
+  });
+  const finTrait = ()=>{
+    if(traitCourant && traitCourant.points.length>1){ E.carte.traits.push(traitCourant); sauver(); }
+    traitCourant = null;
+    redessiner();
+  };
+  canvas.addEventListener('pointerup', finTrait);
+  canvas.addEventListener('pointerleave', finTrait);
+  canvas.addEventListener('pointercancel', finTrait);
 }
-function ouvrirCarte(){ rendreCarte(); $('fond-carte').classList.add('on'); }
+function ouvrirCarte(){
+  assurerCarte();
+  window.__carteMode = 'repere';
+  rendreCarte();
+  $('fond-carte').classList.add('on');
+}
 function ouvrirRepere(id, coords){
   const annot = id ? E.carte.annotations.find(a=>a.id===id) : null;
   const val = annot || {type:'lieu', titre:'', note:'', x:coords.x, y:coords.y, paragraphe:E.paragraphe};
@@ -1348,6 +1436,14 @@ document.addEventListener('click', e=>{
       sauver();
       $('fond-repere').classList.remove('on');
       rendreCarte();
+      break;
+    case 'mode-repere': window.__carteMode = 'repere'; rendreCarte(); break;
+    case 'mode-dessin': window.__carteMode = 'dessin'; rendreCarte(); break;
+    case 'choix-couleur': window.__dessinCouleur = b.dataset.c; rendreCarte(); break;
+    case 'annuler-trait': E.carte.traits.pop(); sauver(); rendreCarte(); break;
+    case 'effacer-dessin':
+      confirmerAction('Effacer le dessin', 'Supprimer tous les traits dessinés sur la carte ?',
+        ()=>{ E.carte.traits = []; sauver(); rendreCarte(); });
       break;
   }
 });
