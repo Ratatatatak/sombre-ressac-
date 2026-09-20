@@ -243,8 +243,9 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
 .carte-conteneur img{display:block; width:100%; height:auto; -webkit-user-drag:none}
 .carte-conteneur canvas{position:absolute; inset:0; width:100%; height:100%;
   pointer-events:none; touch-action:none}
-.carte-conteneur.mode-dessin canvas{pointer-events:auto}
-.carte-conteneur.mode-dessin .pin{pointer-events:none}
+.carte-conteneur.mode-dessin canvas, .carte-conteneur.mode-gomme canvas{pointer-events:auto}
+.carte-conteneur.mode-dessin .pin, .carte-conteneur.mode-gomme .pin{pointer-events:none}
+.carte-conteneur.mode-gomme{cursor:cell}
 .pin{position:absolute; width:20px; height:20px; margin:-18px 0 0 -10px; border-radius:50% 50% 50% 0;
   transform:rotate(-45deg); border:2px solid var(--abysse); cursor:pointer;
   box-shadow:0 1px 4px rgba(0,0,0,.55)}
@@ -1169,10 +1170,13 @@ function assurerCarte(){
   if(!E.carte.annotations) E.carte.annotations = [];
   if(!E.carte.traits) E.carte.traits = [];
 }
+const EFFACE_RAYON = 16;
 function rendreCarte(){
   assurerCarte();
   const annots = E.carte.annotations;
   const modeDessin = window.__carteMode === 'dessin';
+  const modeGomme = window.__carteMode === 'gomme';
+  const modeOutil = modeDessin || modeGomme;
   const couleur = window.__dessinCouleur || COULEURS_DESSIN[0];
   const pins = annots.map(a=>{
     const t = TYPES_REPERE[a.type] || TYPES_REPERE.note;
@@ -1193,15 +1197,16 @@ function rendreCarte(){
     <p class="aide">Notez les lieux traversés, les dangers repérés ou les secrets appris au fil de votre
       périple, ou dessinez directement sur la carte votre itinéraire.</p>
     <div class="carte-outils rangee">
-      <button class="mini ${modeDessin?'':'actif'}" data-act="mode-repere">📍 Repères</button>
+      <button class="mini ${modeOutil?'':'actif'}" data-act="mode-repere">📍 Repères</button>
       <button class="mini ${modeDessin?'actif':''}" data-act="mode-dessin">✏️ Dessiner</button>
+      <button class="mini ${modeGomme?'actif':''}" data-act="mode-gomme">🧹 Gommer</button>
       ${modeDessin ? `<span class="dessin-couleurs">${COULEURS_DESSIN.map(c=>
           `<button class="pastille-couleur ${c===couleur?'sel':''}" style="background:${c}"
-            data-act="choix-couleur" data-c="${c}" title="${c}"></button>`).join('')}</span>
-        <button class="mini" data-act="annuler-trait">↩ Annuler le trait</button>
+            data-act="choix-couleur" data-c="${c}" title="${c}"></button>`).join('')}</span>` : ''}
+      ${modeOutil ? `<button class="mini" data-act="annuler-trait">↩ Annuler le trait</button>
         <button class="mini" data-act="effacer-dessin">Effacer le dessin</button>` : ''}
     </div>
-    <div class="carte-conteneur ${modeDessin?'mode-dessin':''}" id="carte-conteneur">
+    <div class="carte-conteneur ${modeDessin?'mode-dessin':''} ${modeGomme?'mode-gomme':''}" id="carte-conteneur">
       <img src="carte-osmanlie.webp" alt="Carte de l’Osmanlie" draggable="false">
       <canvas id="carte-canvas"></canvas>
       ${pins}
@@ -1217,6 +1222,8 @@ function rendreCarte(){
   const img = cont.querySelector('img');
   const ctx = canvas.getContext('2d');
   let traitCourant = null;
+  let enTrainDeGommer = false;
+  let effaceModifie = false;
 
   function tracerTrait(t){
     if(t.points.length<2) return;
@@ -1241,7 +1248,7 @@ function rendreCarte(){
   if(img.complete) ajusterCanvas(); else img.addEventListener('load', ajusterCanvas);
 
   cont.addEventListener('click', e=>{
-    if(modeDessin) return;
+    if(modeOutil) return;
     if(e.target.closest('.pin')) return;
     const r = e.currentTarget.getBoundingClientRect();
     const x = Math.min(100, Math.max(0, (e.clientX-r.left)/r.width*100));
@@ -1254,24 +1261,58 @@ function rendreCarte(){
     return {x:Math.min(100,Math.max(0,(e.clientX-r.left)/r.width*100)),
             y:Math.min(100,Math.max(0,(e.clientY-r.top)/r.height*100))};
   };
+  function distancePointSegment(px,py,x1,y1,x2,y2){
+    const dx=x2-x1, dy=y2-y1;
+    const lenSq = dx*dx+dy*dy;
+    let t = lenSq ? ((px-x1)*dx+(py-y1)*dy)/lenSq : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px-(x1+t*dx), py-(y1+t*dy));
+  }
+  function traitTouche(t, px, py){
+    for(let i=0;i<t.points.length;i++){
+      const p = t.points[i];
+      const x = p.x/100*canvas.width, y = p.y/100*canvas.height;
+      if(i===0){
+        if(Math.hypot(px-x,py-y) <= EFFACE_RAYON) return true;
+      } else {
+        const prev = t.points[i-1];
+        const x1 = prev.x/100*canvas.width, y1 = prev.y/100*canvas.height;
+        if(distancePointSegment(px,py,x1,y1,x,y) <= EFFACE_RAYON) return true;
+      }
+    }
+    return false;
+  }
+  function gommerA(e){
+    const r = canvas.getBoundingClientRect();
+    const px = e.clientX-r.left, py = e.clientY-r.top;
+    const avant = E.carte.traits.length;
+    E.carte.traits = E.carte.traits.filter(t=>!traitTouche(t, px, py));
+    if(E.carte.traits.length !== avant) effaceModifie = true;
+    redessiner();
+  }
   canvas.addEventListener('pointerdown', e=>{
-    if(!modeDessin) return;
-    canvas.setPointerCapture(e.pointerId);
-    traitCourant = {points:[posRelative(e)], couleur};
+    if(modeDessin){
+      canvas.setPointerCapture(e.pointerId);
+      traitCourant = {points:[posRelative(e)], couleur};
+    } else if(modeGomme){
+      canvas.setPointerCapture(e.pointerId);
+      enTrainDeGommer = true;
+      gommerA(e);
+    }
   });
   canvas.addEventListener('pointermove', e=>{
-    if(!traitCourant) return;
-    traitCourant.points.push(posRelative(e));
-    redessiner();
+    if(traitCourant){ traitCourant.points.push(posRelative(e)); redessiner(); }
+    else if(enTrainDeGommer){ gommerA(e); }
   });
-  const finTrait = ()=>{
+  const finGeste = ()=>{
     if(traitCourant && traitCourant.points.length>1){ E.carte.traits.push(traitCourant); sauver(); }
     traitCourant = null;
+    if(enTrainDeGommer){ enTrainDeGommer = false; if(effaceModifie){ sauver(); effaceModifie = false; } }
     redessiner();
   };
-  canvas.addEventListener('pointerup', finTrait);
-  canvas.addEventListener('pointerleave', finTrait);
-  canvas.addEventListener('pointercancel', finTrait);
+  canvas.addEventListener('pointerup', finGeste);
+  canvas.addEventListener('pointerleave', finGeste);
+  canvas.addEventListener('pointercancel', finGeste);
 }
 function ouvrirCarte(){
   assurerCarte();
@@ -1492,6 +1533,7 @@ document.addEventListener('click', e=>{
       break;
     case 'mode-repere': window.__carteMode = 'repere'; rendreCarte(); break;
     case 'mode-dessin': window.__carteMode = 'dessin'; rendreCarte(); break;
+    case 'mode-gomme': window.__carteMode = 'gomme'; rendreCarte(); break;
     case 'choix-couleur': window.__dessinCouleur = b.dataset.c; rendreCarte(); break;
     case 'annuler-trait': E.carte.traits.pop(); sauver(); rendreCarte(); break;
     case 'effacer-dessin':
