@@ -96,11 +96,14 @@ input[type=text]{width:100%; background:var(--voile); border:1px solid var(--bru
 #jeu{display:none}
 #jeu.on{display:block}
 .barre{border-bottom:1px solid var(--hairline); padding:10px 20px; display:flex;
-  gap:14px; align-items:center; flex-wrap:wrap; position:sticky; top:0;
+  flex-direction:column; gap:8px; position:sticky; top:0;
   background:var(--abysse); z-index:20}
+.barre-haut{display:flex; gap:14px; align-items:center; flex-wrap:wrap}
+.barre-boutons{display:flex; gap:8px; margin-left:auto; flex-wrap:wrap}
 .barre .marque{font-weight:700; font-size:20px}
 .barre .marque em{font-style:normal; color:var(--laiton)}
-.jauges{display:flex; gap:12px; flex-wrap:wrap; margin-left:auto;
+.onglets-mobile{display:none}
+.jauges{display:flex; gap:12px; flex-wrap:wrap;
   font-family:"Barlow Semi Condensed",sans-serif; font-size:15px}
 .jauge{display:flex; align-items:baseline; gap:5px}
 .jauge span:first-child{color:var(--pale); font-size:13.5px}
@@ -108,15 +111,46 @@ input[type=text]{width:100%; background:var(--voile); border:1px solid var(--bru
 .jauge.bas b{color:var(--sang)}
 .plateau{max-width:1360px; margin:0 auto; padding:26px 20px 70px;
   display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:38px; align-items:start}
-@media(max-width:1000px){.plateau{grid-template-columns:1fr; gap:26px}}
+@media(max-width:1000px){
+  .plateau{grid-template-columns:1fr; gap:22px}
+  .barre{padding:8px 14px 0}
+  .barre-haut{gap:8px}
+  .barre .marque{font-size:17px}
+  .barre-boutons{gap:6px}
+  .barre-boutons .mini{padding:7px 11px; font-size:13px}
+  .jauges{flex:1 1 100%; min-width:0; flex-wrap:nowrap; overflow-x:auto;
+    -webkit-overflow-scrolling:touch; font-size:12.5px; gap:10px; padding-bottom:8px}
+  .jauge{flex:0 0 auto}
+  .jauge b{font-size:16px}
+  .onglets-mobile{display:flex; flex:1 1 100%; border:1px solid var(--hairline);
+    border-radius:2px; overflow:hidden; margin-bottom:-1px}
+  .onglets-mobile .onglet{flex:1; background:none; border:none; border-right:1px solid var(--hairline);
+    color:var(--pale); font-family:"Barlow Semi Condensed",sans-serif; font-weight:600;
+    font-size:14px; padding:11px 8px}
+  .onglets-mobile .onglet:last-child{border-right:none}
+  .onglets-mobile .onglet.actif{background:var(--faible); color:var(--laiton)}
+  .plateau aside{display:none}
+  .plateau.vue-feuille main{display:none}
+  .plateau.vue-feuille aside{display:block}
+}
+@media(max-width:1000px){
+  .pm{width:32px; height:32px; font-size:16px}
+  .en-ctrl .pm{width:32px; height:32px; font-size:16px}
+  .mini{padding:9px 14px; font-size:14.5px}
+  .barre-boutons .mini{padding:7px 11px; font-size:13px}
+  .pastille-couleur{width:27px; height:27px}
+  .slot button{padding:5px 6px; font-size:16px}
+  .repere-item{padding:9px 11px}
+  .choix{padding:13px 15px}
+}
 
 /* --- recit --- */
-.entete-p{display:flex; align-items:center; gap:14px; margin-bottom:10px}
+.entete-p{display:flex; align-items:center; gap:14px; margin:0 auto 10px; max-width:64ch}
 .pnum{font-family:"Barlow Semi Condensed",sans-serif; font-weight:600; font-size:64px;
   line-height:.85; color:var(--laiton); font-variant-numeric:tabular-nums}
-.recit{max-width:64ch}
+.recit{max-width:64ch; margin:0 auto}
 .recit p{margin:0 0 1.05em}
-.actions{max-width:64ch; margin-top:30px}
+.actions{max-width:64ch; margin:30px auto 0}
 .sec{margin-bottom:24px}
 .sec h3{font-family:"Barlow Semi Condensed",sans-serif; font-size:14.5px; font-weight:600;
   color:var(--pale); margin-bottom:8px}
@@ -238,19 +272,26 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
 .dot-danger{background:var(--sang)}
 .dot-tresor{background:var(--jade)}
 .dot-note{background:var(--pale)}
-.carte-conteneur{position:relative; width:100%; border:1px solid var(--brume);
-  border-radius:2px; cursor:crosshair; overflow:hidden; -webkit-user-select:none; user-select:none}
-.carte-conteneur img{display:block; width:100%; height:auto; -webkit-user-drag:none}
-.carte-conteneur canvas{position:absolute; inset:0; width:100%; height:100%;
-  pointer-events:none; touch-action:none}
+.carte-conteneur{position:relative; width:100%; aspect-ratio:1772/1299; border:1px solid var(--brume);
+  border-radius:2px; cursor:crosshair; overflow:hidden; -webkit-user-select:none; user-select:none;
+  touch-action:none}
+.carte-scene{position:absolute; inset:0; transform-origin:0 0}
+.carte-scene img{display:block; width:100%; height:100%; -webkit-user-drag:none}
+.carte-scene canvas{position:absolute; inset:0; width:100%; height:100%;
+  pointer-events:none}
 .carte-conteneur.mode-dessin canvas, .carte-conteneur.mode-gomme canvas{pointer-events:auto}
-.carte-conteneur.mode-dessin .pin, .carte-conteneur.mode-gomme .pin{pointer-events:none}
+.carte-conteneur.mode-dessin .pin, .carte-conteneur.mode-gomme .pin, .carte-conteneur.mode-deplacer .pin{pointer-events:none}
 .carte-conteneur.mode-gomme{cursor:cell}
+.carte-conteneur.mode-deplacer{cursor:grab}
+.carte-conteneur.mode-deplacer.saisie{cursor:grabbing}
 .pin{position:absolute; width:20px; height:20px; margin:-18px 0 0 -10px; border-radius:50% 50% 50% 0;
   transform:rotate(-45deg); border:2px solid var(--abysse); cursor:pointer;
   box-shadow:0 1px 4px rgba(0,0,0,.55)}
 .pin:hover{filter:brightness(1.2)}
-.carte-outils{margin-bottom:10px; row-gap:8px}
+.carte-outils{margin-bottom:8px; row-gap:8px}
+.carte-zoom{margin-bottom:10px; align-items:center}
+.carte-zoom .zoom-val{font-family:"Barlow Semi Condensed",sans-serif; font-size:13px;
+  color:var(--pale); min-width:42px; text-align:center}
 .mini.actif{background:var(--laiton); color:var(--sur-accent,var(--abysse)); border-color:var(--laiton)}
 .dessin-couleurs{display:inline-flex; gap:6px; align-items:center; margin:0 4px}
 .pastille-couleur{width:20px; height:20px; border-radius:50%; border:2px solid transparent;
@@ -274,6 +315,7 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
 
 <!-- ======================= COMPTE ======================= -->
 <div class="barre-compte c" id="barre-compte">
+  <button class="mini" id="btn-theme" aria-label="Changer l’apparence claire ou sombre">🌙 Sombre</button>
   <button class="mini" id="btn-ouvrir-connexion">Se connecter</button>
   <span id="compte-connecte" style="display:none">
     <span id="compte-email" class="compte-mail"></span>
@@ -326,10 +368,18 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
 <!-- ======================= JEU ======================= -->
 <section id="jeu">
  <div class="barre">
-   <div class="marque">Sombres <em>Ressacs</em></div>
-   <button class="mini" data-act="voir-carte">🗺️ Carte</button>
-   <button class="mini" data-act="voir-histoire">📜 Historique</button>
+   <div class="barre-haut">
+     <div class="marque">Sombres <em>Ressacs</em></div>
+     <div class="barre-boutons">
+       <button class="mini" data-act="voir-carte">🗺️ Carte</button>
+       <button class="mini" data-act="voir-histoire">📜 Historique</button>
+     </div>
+   </div>
    <div class="jauges c" id="jauges"></div>
+   <div class="onglets-mobile c" id="onglets-mobile" role="tablist" aria-label="Affichage">
+     <button class="onglet actif" data-vue="recit" role="tab" aria-selected="true">Récit</button>
+     <button class="onglet" data-vue="feuille" role="tab" aria-selected="false">Feuille d’aventure</button>
+   </div>
  </div>
  <div class="plateau">
    <main>
@@ -376,6 +426,30 @@ const de  = () => 1 + Math.floor(Math.random()*6);
 const $   = id => document.getElementById(id);
 const CLE = 'sombres-ressacs-v1';
 const CLE_HISTOIRE = 'sombres-ressacs-historique-v1';
+const CLE_THEME = 'sombres-ressacs-theme';
+
+/* ---------- theme clair / sombre, au choix (par defaut : preference systeme) ---------- */
+function themeActuel(){
+  return document.documentElement.getAttribute('data-theme')
+    || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+}
+function majBoutonTheme(){
+  const b = $('btn-theme'); if(!b) return;
+  b.textContent = themeActuel()==='dark' ? '☀️ Clair' : '🌙 Sombre';
+}
+function appliquerThemeInitial(){
+  try{
+    const t = localStorage.getItem(CLE_THEME);
+    if(t) document.documentElement.setAttribute('data-theme', t);
+  }catch(e){}
+  majBoutonTheme();
+}
+function basculerTheme(){
+  const suivant = themeActuel()==='dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', suivant);
+  try{ localStorage.setItem(CLE_THEME, suivant); }catch(e){}
+  majBoutonTheme();
+}
 
 /* ============================================================
    COMPTE — synchro cloud via Supabase (email + mot de passe)
@@ -674,8 +748,21 @@ function verifierApprentissageSort(){
   E.sortApprisIci = {nom:ens.nom, chiffre:ens.chiffre, index:k};
 }
 
+/* ---------- bascule Récit / Feuille, affichée seulement sur mobile ---------- */
+function mobileMontrerRecit(){
+  const plateau = document.querySelector('.plateau');
+  if(!plateau) return;
+  plateau.classList.remove('vue-feuille');
+  document.querySelectorAll('#onglets-mobile .onglet').forEach(b=>{
+    const actif = b.dataset.vue==='recit';
+    b.classList.toggle('actif', actif);
+    b.setAttribute('aria-selected', actif?'true':'false');
+  });
+}
+
 function aller(n, effaceRetour=true){
   if(!P[n]) return;
+  mobileMontrerRecit();
   /* memorise le paragraphe que l'on quitte, pour le bouton Précédent */
   if(E.paragraphe !== Number(n)){
     E.pileNav.push(E.paragraphe);
@@ -709,6 +796,7 @@ function reculer(){
     cible = E.visites[E.visites.length-1];
   }
   if(cible === null) return;
+  mobileMontrerRecit();
   const etaitMort = (E.termine === 'mort');
   E.paragraphe = cible;
   E.termine = null;
@@ -1171,13 +1259,17 @@ function assurerCarte(){
   if(!E.carte.traits) E.carte.traits = [];
 }
 const EFFACE_RAYON = 16;
+const CARTE_ZOOM_MIN = 1, CARTE_ZOOM_MAX = 4, CARTE_ZOOM_PAS = 0.5, CARTE_ZOOM_BUFFER = 4;
 function rendreCarte(){
   assurerCarte();
   const annots = E.carte.annotations;
   const modeDessin = window.__carteMode === 'dessin';
   const modeGomme = window.__carteMode === 'gomme';
-  const modeOutil = modeDessin || modeGomme;
+  const modeDeplacer = window.__carteMode === 'deplacer';
+  const modeOutil = modeDessin || modeGomme || modeDeplacer;
   const couleur = window.__dessinCouleur || COULEURS_DESSIN[0];
+  const zoom = window.__carteZoom || 1;
+  const pan = window.__cartePan || {x:0, y:0};
   const pins = annots.map(a=>{
     const t = TYPES_REPERE[a.type] || TYPES_REPERE.note;
     return `<div class="pin ${t.dot}" style="left:${a.x}%;top:${a.y}%"
@@ -1195,21 +1287,30 @@ function rendreCarte(){
     : `<p class="aide">Cliquez n’importe où sur la carte pour poser votre premier repère.</p>`;
   $('m-carte').innerHTML = `<h2>Carte d’Osmanlie</h2>
     <p class="aide">Notez les lieux traversés, les dangers repérés ou les secrets appris au fil de votre
-      périple, ou dessinez directement sur la carte votre itinéraire.</p>
+      périple, ou dessinez directement sur la carte votre itinéraire. Zoomez pour plus de précision.</p>
     <div class="carte-outils rangee">
       <button class="mini ${modeOutil?'':'actif'}" data-act="mode-repere">📍 Repères</button>
       <button class="mini ${modeDessin?'actif':''}" data-act="mode-dessin">✏️ Dessiner</button>
       <button class="mini ${modeGomme?'actif':''}" data-act="mode-gomme">🧹 Gommer</button>
+      <button class="mini ${modeDeplacer?'actif':''}" data-act="mode-deplacer">✋ Déplacer</button>
       ${modeDessin ? `<span class="dessin-couleurs">${COULEURS_DESSIN.map(c=>
           `<button class="pastille-couleur ${c===couleur?'sel':''}" style="background:${c}"
             data-act="choix-couleur" data-c="${c}" title="${c}"></button>`).join('')}</span>` : ''}
-      ${modeOutil ? `<button class="mini" data-act="annuler-trait">↩ Annuler le trait</button>
+      ${modeOutil && !modeDeplacer ? `<button class="mini" data-act="annuler-trait">↩ Annuler le trait</button>
         <button class="mini" data-act="effacer-dessin">Effacer le dessin</button>` : ''}
     </div>
-    <div class="carte-conteneur ${modeDessin?'mode-dessin':''} ${modeGomme?'mode-gomme':''}" id="carte-conteneur">
-      <img src="carte-osmanlie.webp" alt="Carte de l’Osmanlie" draggable="false">
-      <canvas id="carte-canvas"></canvas>
-      ${pins}
+    <div class="carte-zoom rangee">
+      <button class="mini" id="btn-zoom-moins" aria-label="Zoom arrière">➖</button>
+      <span class="zoom-val num" id="carte-zoom-val">${Math.round(zoom*100)}%</span>
+      <button class="mini" id="btn-zoom-plus" aria-label="Zoom avant">➕</button>
+      <button class="mini" id="btn-zoom-reset">↺ Réinitialiser la vue</button>
+    </div>
+    <div class="carte-conteneur ${modeDessin?'mode-dessin':''} ${modeGomme?'mode-gomme':''} ${modeDeplacer?'mode-deplacer':''}" id="carte-conteneur">
+      <div class="carte-scene" id="carte-scene" style="transform:translate(${pan.x}px,${pan.y}px) scale(${zoom})">
+        <img src="carte-osmanlie.webp" alt="Carte de l’Osmanlie" draggable="false">
+        <canvas id="carte-canvas"></canvas>
+        ${pins}
+      </div>
     </div>
     <div class="carte-legende">${legende}</div>
     ${liste}
@@ -1218,17 +1319,21 @@ function rendreCarte(){
     </div>`;
 
   const cont = $('carte-conteneur');
+  const scene = $('carte-scene');
   const canvas = $('carte-canvas');
   const img = cont.querySelector('img');
   const ctx = canvas.getContext('2d');
   let traitCourant = null;
   let enTrainDeGommer = false;
   let effaceModifie = false;
+  let deplaceDepart = null;
+  let baseW = cont.getBoundingClientRect().width;
+  let baseH = cont.getBoundingClientRect().height;
 
   function tracerTrait(t){
     if(t.points.length<2) return;
     ctx.beginPath();
-    ctx.strokeStyle = t.couleur; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = t.couleur; ctx.lineWidth = 3*CARTE_ZOOM_BUFFER; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     t.points.forEach((p,i)=>{
       const x = p.x/100*canvas.width, y = p.y/100*canvas.height;
       if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
@@ -1242,25 +1347,87 @@ function rendreCarte(){
   }
   function ajusterCanvas(){
     const r = cont.getBoundingClientRect();
-    canvas.width = r.width; canvas.height = r.height;
+    baseW = r.width; baseH = r.height;
+    canvas.width = Math.round(r.width * CARTE_ZOOM_BUFFER);
+    canvas.height = Math.round(r.height * CARTE_ZOOM_BUFFER);
     redessiner();
   }
   if(img.complete) ajusterCanvas(); else img.addEventListener('load', ajusterCanvas);
 
+  function appliquerTransform(){
+    scene.style.transform = `translate(${window.__cartePan.x}px,${window.__cartePan.y}px) scale(${window.__carteZoom})`;
+    const zv = $('carte-zoom-val'); if(zv) zv.textContent = Math.round(window.__carteZoom*100)+'%';
+  }
+  function limiterPan(){
+    const z = window.__carteZoom;
+    const minX = baseW*(1-z), minY = baseH*(1-z);
+    window.__cartePan = {
+      x: Math.min(0, Math.max(minX, window.__cartePan.x)),
+      y: Math.min(0, Math.max(minY, window.__cartePan.y))
+    };
+  }
+  function zoomVers(nouveauZoom, ancrageX, ancrageY){
+    nouveauZoom = Math.min(CARTE_ZOOM_MAX, Math.max(CARTE_ZOOM_MIN, nouveauZoom));
+    const z0 = window.__carteZoom, p0 = window.__cartePan;
+    const localX = (ancrageX - p0.x)/z0, localY = (ancrageY - p0.y)/z0;
+    window.__carteZoom = nouveauZoom;
+    window.__cartePan = { x: ancrageX - nouveauZoom*localX, y: ancrageY - nouveauZoom*localY };
+    limiterPan();
+    appliquerTransform();
+  }
+  $('btn-zoom-moins').addEventListener('click', ()=> zoomVers(window.__carteZoom-CARTE_ZOOM_PAS, baseW/2, baseH/2));
+  $('btn-zoom-plus').addEventListener('click', ()=> zoomVers(window.__carteZoom+CARTE_ZOOM_PAS, baseW/2, baseH/2));
+  $('btn-zoom-reset').addEventListener('click', ()=>{
+    window.__carteZoom = 1; window.__cartePan = {x:0, y:0}; appliquerTransform();
+  });
+  cont.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const r = cont.getBoundingClientRect();
+    const facteur = e.deltaY < 0 ? 1.15 : 1/1.15;
+    zoomVers(window.__carteZoom*facteur, e.clientX-r.left, e.clientY-r.top);
+  }, {passive:false});
+
+  function positionEcran(e){
+    const r = cont.getBoundingClientRect();
+    return { x: e.clientX-r.left, y: e.clientY-r.top };
+  }
+  function versPourcent(e){
+    const {x:px,y:py} = positionEcran(e);
+    const z = window.__carteZoom, pan2 = window.__cartePan;
+    const localX = (px-pan2.x)/z, localY = (py-pan2.y)/z;
+    return { x: Math.min(100, Math.max(0, localX/baseW*100)),
+             y: Math.min(100, Math.max(0, localY/baseH*100)) };
+  }
+  function versLocalPx(e){
+    const {x:px,y:py} = positionEcran(e);
+    const z = window.__carteZoom, pan2 = window.__cartePan;
+    return { x: (px-pan2.x)/z, y: (py-pan2.y)/z };
+  }
+
   cont.addEventListener('click', e=>{
     if(modeOutil) return;
     if(e.target.closest('.pin')) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const x = Math.min(100, Math.max(0, (e.clientX-r.left)/r.width*100));
-    const y = Math.min(100, Math.max(0, (e.clientY-r.top)/r.height*100));
-    ouvrirRepere(null, {x, y});
+    ouvrirRepere(null, versPourcent(e));
   });
 
-  const posRelative = e=>{
-    const r = canvas.getBoundingClientRect();
-    return {x:Math.min(100,Math.max(0,(e.clientX-r.left)/r.width*100)),
-            y:Math.min(100,Math.max(0,(e.clientY-r.top)/r.height*100))};
-  };
+  cont.addEventListener('pointerdown', e=>{
+    if(!modeDeplacer) return;
+    cont.setPointerCapture(e.pointerId);
+    cont.classList.add('saisie');
+    deplaceDepart = {x:e.clientX, y:e.clientY, pan0:{...window.__cartePan}};
+  });
+  cont.addEventListener('pointermove', e=>{
+    if(!deplaceDepart) return;
+    window.__cartePan = { x: deplaceDepart.pan0.x + (e.clientX-deplaceDepart.x),
+                           y: deplaceDepart.pan0.y + (e.clientY-deplaceDepart.y) };
+    limiterPan();
+    appliquerTransform();
+  });
+  const finDeplacement = ()=>{ deplaceDepart = null; cont.classList.remove('saisie'); };
+  cont.addEventListener('pointerup', finDeplacement);
+  cont.addEventListener('pointerleave', finDeplacement);
+  cont.addEventListener('pointercancel', finDeplacement);
+
   function distancePointSegment(px,py,x1,y1,x2,y2){
     const dx=x2-x1, dy=y2-y1;
     const lenSq = dx*dx+dy*dy;
@@ -1268,32 +1435,32 @@ function rendreCarte(){
     t = Math.max(0, Math.min(1, t));
     return Math.hypot(px-(x1+t*dx), py-(y1+t*dy));
   }
-  function traitTouche(t, px, py){
+  function traitTouche(t, px, py, rayon){
     for(let i=0;i<t.points.length;i++){
       const p = t.points[i];
-      const x = p.x/100*canvas.width, y = p.y/100*canvas.height;
+      const x = p.x/100*baseW, y = p.y/100*baseH;
       if(i===0){
-        if(Math.hypot(px-x,py-y) <= EFFACE_RAYON) return true;
+        if(Math.hypot(px-x,py-y) <= rayon) return true;
       } else {
         const prev = t.points[i-1];
-        const x1 = prev.x/100*canvas.width, y1 = prev.y/100*canvas.height;
-        if(distancePointSegment(px,py,x1,y1,x,y) <= EFFACE_RAYON) return true;
+        const x1 = prev.x/100*baseW, y1 = prev.y/100*baseH;
+        if(distancePointSegment(px,py,x1,y1,x,y) <= rayon) return true;
       }
     }
     return false;
   }
   function gommerA(e){
-    const r = canvas.getBoundingClientRect();
-    const px = e.clientX-r.left, py = e.clientY-r.top;
+    const {x:px,y:py} = versLocalPx(e);
+    const rayon = EFFACE_RAYON / window.__carteZoom;
     const avant = E.carte.traits.length;
-    E.carte.traits = E.carte.traits.filter(t=>!traitTouche(t, px, py));
+    E.carte.traits = E.carte.traits.filter(t=>!traitTouche(t, px, py, rayon));
     if(E.carte.traits.length !== avant) effaceModifie = true;
     redessiner();
   }
   canvas.addEventListener('pointerdown', e=>{
     if(modeDessin){
       canvas.setPointerCapture(e.pointerId);
-      traitCourant = {points:[posRelative(e)], couleur};
+      traitCourant = {points:[versPourcent(e)], couleur};
     } else if(modeGomme){
       canvas.setPointerCapture(e.pointerId);
       enTrainDeGommer = true;
@@ -1301,7 +1468,7 @@ function rendreCarte(){
     }
   });
   canvas.addEventListener('pointermove', e=>{
-    if(traitCourant){ traitCourant.points.push(posRelative(e)); redessiner(); }
+    if(traitCourant){ traitCourant.points.push(versPourcent(e)); redessiner(); }
     else if(enTrainDeGommer){ gommerA(e); }
   });
   const finGeste = ()=>{
@@ -1317,6 +1484,8 @@ function rendreCarte(){
 function ouvrirCarte(){
   assurerCarte();
   window.__carteMode = 'repere';
+  window.__carteZoom = 1;
+  window.__cartePan = {x:0, y:0};
   rendreCarte();
   $('fond-carte').classList.add('on');
 }
@@ -1534,6 +1703,7 @@ document.addEventListener('click', e=>{
     case 'mode-repere': window.__carteMode = 'repere'; rendreCarte(); break;
     case 'mode-dessin': window.__carteMode = 'dessin'; rendreCarte(); break;
     case 'mode-gomme': window.__carteMode = 'gomme'; rendreCarte(); break;
+    case 'mode-deplacer': window.__carteMode = 'deplacer'; rendreCarte(); break;
     case 'choix-couleur': window.__dessinCouleur = b.dataset.c; rendreCarte(); break;
     case 'annuler-trait': E.carte.traits.pop(); sauver(); rendreCarte(); break;
     case 'effacer-dessin':
@@ -1541,6 +1711,18 @@ document.addEventListener('click', e=>{
         ()=>{ E.carte.traits = []; sauver(); rendreCarte(); });
       break;
   }
+});
+const ongletsMobile = $('onglets-mobile');
+if(ongletsMobile) ongletsMobile.addEventListener('click', e=>{
+  const b = e.target.closest('.onglet');
+  if(!b) return;
+  document.querySelectorAll('#onglets-mobile .onglet').forEach(x=>{
+    const actif = x===b;
+    x.classList.toggle('actif', actif);
+    x.setAttribute('aria-selected', actif?'true':'false');
+  });
+  document.querySelector('.plateau').classList.toggle('vue-feuille', b.dataset.vue==='feuille');
+  window.scrollTo({top:0, behavior:'instant'});
 });
 document.querySelectorAll('.fond').forEach(f=>f.addEventListener('click', e=>{
   if(e.target===f && f.id==='fond-info'){ f.classList.remove('on'); window.__okInfo=null; window.__siOui=null; }
@@ -1735,6 +1917,8 @@ $('btn-deconnexion').addEventListener('click', async ()=>{
 configurerBoutonReprendre();
 actualiserAccueilHistorique();
 initAuth();
+appliquerThemeInitial();
+$('btn-theme').addEventListener('click', basculerTheme);
 </script>
 </body>
 </html>
