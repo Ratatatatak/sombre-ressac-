@@ -213,11 +213,16 @@ input[type=text]{width:100%; background:var(--voile); border:1px solid var(--bru
 .journal b{color:var(--ecume); font-weight:600}
 .journal .g{color:var(--jade)} .journal .r{color:var(--sang)}
 
-/* --- feuille d'aventure : HUD --- */
-.feuille{position:sticky; top:88px; max-height:calc(100vh - 100px); overflow-y:auto;
-  border:1px solid var(--brume); border-radius:var(--rayon-l); padding:18px;
-  background:var(--ressac); font-family:"Barlow Semi Condensed",sans-serif; font-size:15px}
-@media(max-width:1000px){.feuille{position:static; max-height:none; background:none; border:none; padding:0}}
+/* --- feuille d'aventure : HUD ---
+   Desktop : colonne libre, sans boite ni double defilement, tout deplie
+   (assez de place). Mobile/tablette : redevient une carte compacte,
+   affichee via l'onglet dedie, ou les sections secondaires se replient. */
+.feuille{position:sticky; top:88px;
+  font-family:"Barlow Semi Condensed",sans-serif; font-size:15px}
+@media(max-width:1000px){
+  .feuille{position:static; background:var(--ressac); border:1px solid var(--brume);
+    border-radius:var(--rayon-l); padding:18px}
+}
 .feuille h2{font-size:13px; color:var(--pale); margin-bottom:12px; text-transform:uppercase;
   letter-spacing:.08em; font-weight:600}
 .feuille-nom{font-family:"Amiri",serif; font-size:19px; color:var(--ecume); margin-bottom:16px}
@@ -227,12 +232,13 @@ input[type=text]{width:100%; background:var(--voile); border:1px solid var(--bru
 details.bloc-f{padding-top:0; margin-top:14px}
 details.bloc-f summary{list-style:none; cursor:pointer; padding-top:14px; margin:0 0 10px;
   font-size:13px; color:var(--pale); font-weight:600; text-transform:uppercase; letter-spacing:.05em;
-  display:flex; align-items:center; gap:7px; min-height:var(--cible-min)}
+  display:flex; align-items:center; gap:7px}
 details.bloc-f summary::-webkit-details-marker{display:none}
-details.bloc-f summary::after{content:'▾'; margin-left:auto; color:var(--pale); font-size:12px;
+details.bloc-f summary::after{content:'▾'; margin-left:auto; color:var(--pale); font-size:11px;
   transition:transform var(--vite)}
 details.bloc-f[open] summary::after{transform:rotate(180deg)}
 details.bloc-f summary:hover{color:var(--ecume)}
+@media(max-width:1000px){details.bloc-f summary{min-height:var(--cible-min)}}
 .stat-ligne{margin-bottom:14px}
 .stat-ligne:last-of-type{margin-bottom:0}
 .stat-tete{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:5px}
@@ -1017,7 +1023,9 @@ function rendreRecit(){
   $('actions').innerHTML = h;
 }
 
+const MQ_LARGE = window.matchMedia('(min-width:1000px)');
 function rendreFeuille(){
+  const large = MQ_LARGE.matches;   // desktop : assez de place, on deplie tout d'office
   const car = (nom, cle, icone) => {
     const c = E[cle];
     const pct = c.initiale ? Math.round(c.actuelle/c.initiale*100) : 0;
@@ -1069,7 +1077,7 @@ function rendreFeuille(){
   h += `</div><button class="mini" data-act="nouvel-objet" style="margin-top:7px">+ Objet</button></div>`;
 
   /* lanceur de des libre — repliable, ouvert seulement s'il y a un resultat a traiter */
-  h += `<details class="bloc-f" ${E.dernierJet?'open':''}><summary>🎲 Lancer les dés</summary>
+  h += `<details class="bloc-f" ${(large||E.dernierJet)?'open':''}><summary>🎲 Lancer les dés</summary>
     <div class="rangee">
       <button class="mini" data-act="de-1">Lancer 1 dé</button>
       <button class="mini" data-act="de-2">Lancer 2 dés</button>
@@ -1095,7 +1103,7 @@ function rendreFeuille(){
 
   /* heptagramme — repliable, ouvert par defaut des qu'un sort est connu */
   const aDesSorts = E.heptagramme.some(s=>s);
-  h += `<details class="bloc-f" ${aDesSorts?'open':''}><summary>🔮 Heptagramme</summary><div class="hepta">`
+  h += `<details class="bloc-f" ${(large||aDesSorts)?'open':''}><summary>🔮 Heptagramme</summary><div class="hepta">`
     + E.heptagramme.map((s,i)=> s
         ? `<div class="branche"><button data-act="sort" data-i="${i}" title="Lancer ${esc(s.nom)}">${esc(s.nom)} (${s.chiffre})</button></div>`
         : `<div class="branche libre">branche libre</div>`).join('')
@@ -1106,7 +1114,7 @@ function rendreFeuille(){
                   ['Effets temporaires','effetsTemporaires'],['Effets permanents','effetsPermanents'],
                   ['Secrets découverts','secrets']];
   const aDesEtats = listes.some(([,cle])=>E[cle].length);
-  h += `<details class="bloc-f" ${aDesEtats?'open':''}><summary>📜 États et secrets</summary>`;
+  h += `<details class="bloc-f" ${(large||aDesEtats)?'open':''}><summary>📜 États et secrets</summary>`;
   listes.forEach(([lab,cle])=>{
     h += `<div class="ligne"><span class="n" style="color:var(--pale);font-size:13.5px">${lab}</span>
       <button class="pm" data-act="ajouter-liste" data-c="${cle}" data-l="${lab}">+</button></div>`;
@@ -1116,10 +1124,10 @@ function rendreFeuille(){
   });
   h += `</details>`;
 
-  h += `<details class="bloc-f" ${E.notes.trim()?'open':''}><summary>📝 Notes</summary>
+  h += `<details class="bloc-f" ${(large||E.notes.trim())?'open':''}><summary>📝 Notes</summary>
     <textarea id="notes" placeholder="Renseignements entendus, chemins déjà tentés…">${esc(E.notes)}</textarea></details>`;
 
-  h += `<details class="bloc-f" ${E.sombresDestins.length?'open':''}><summary>⚰️ Sombres Destins — cette lecture</summary>`
+  h += `<details class="bloc-f" ${(large||E.sombresDestins.length)?'open':''}><summary>⚰️ Sombres Destins — cette lecture</summary>`
     + (E.sombresDestins.length
         ? `<div class="aide">${E.sombresDestins.map(d=>d.paragraphe).join(', ')}</div>`
         : `<div class="aide">Aucune fin funeste consignée pour l’instant.</div>`)
@@ -2004,6 +2012,9 @@ actualiserAccueilHistorique();
 initAuth();
 appliquerThemeInitial();
 $('btn-theme').addEventListener('click', basculerTheme);
+
+/* repliage/depliage de la feuille d'aventure : suit le passage desktop <-> mobile */
+MQ_LARGE.addEventListener('change', ()=>{ if($('jeu').classList.contains('on')) rendreFeuille(); });
 </script>
 </body>
 </html>
