@@ -2137,7 +2137,7 @@ const Narrateur = (()=>{
   /* appele a chaque rendu du recit : rendre() reconstruit le DOM meme
      quand le paragraphe ne change pas (effet applique, objet pris...) */
   function apresRendu(){
-    if(!synth) return;
+    if(!synth || !voixFr) return;
     if(paraLu !== null && paraLu !== E.paragraphe){
       const continuer = actif && prefs.auto && !E.termine;
       jeton++; synth.cancel(); enLecture = false; indice = 0; paraLu = null;
@@ -2147,8 +2147,14 @@ const Narrateur = (()=>{
   }
 
   function init(){
-    if(!synth || typeof SpeechSynthesisUtterance === 'undefined') return;
     $('narration').hidden = false;
+    if(!synth || typeof SpeechSynthesisUtterance === 'undefined'){
+      /* ex. lecteur integre d'une application Android : pas de synthese vocale */
+      $('btn-voix').hidden = true;
+      $('btn-ecouter').addEventListener('click', ()=>info('Lecture audio indisponible ici',
+        'Ce navigateur ne propose pas de voix de synthèse (c’est souvent le cas des fenêtres ouvertes depuis une application). Ouvrez le site dans Chrome, Edge ou Safari pour écouter le récit.'));
+      return;
+    }
     chargerVoix();
     if('onvoiceschanged' in synth) synth.addEventListener('voiceschanged', chargerVoix);
     $('voix-vitesse').value = prefs.vitesse;
