@@ -182,6 +182,30 @@ input[type=text]{width:100%; background:var(--voile); border:1px solid var(--bru
   line-height:.85; color:var(--laiton); font-variant-numeric:tabular-nums}
 .recit{max-width:64ch; margin:0 auto; font-size:18px}
 .recit p{margin:0 0 1.1em}
+
+/* --- narration : lecture a voix haute du recit --- */
+.narration{margin-left:auto; display:flex; gap:6px; align-items:center}
+.narration .mini[aria-pressed="true"]{border-color:var(--laiton); color:var(--laiton); background:var(--faible)}
+.ph{border-radius:2px}
+@media(prefers-reduced-motion:no-preference){.ph{transition:background-color var(--doux), box-shadow var(--doux)}}
+.ph.lu{background:var(--faible); box-shadow:0 0 0 3px var(--faible); color:var(--ecume)}
+.reglages-voix{max-width:64ch; margin:-8px auto 20px; padding:14px 16px; background:var(--voile);
+  border:1px solid var(--hairline); border-radius:var(--rayon-m); font-size:14.5px;
+  display:grid; grid-template-columns:auto 1fr; gap:10px 14px; align-items:center}
+.reglages-voix[hidden]{display:none}
+.reglages-voix label{color:var(--pale)}
+.reglages-voix select{width:100%; min-width:0; background:var(--ressac); color:var(--ecume);
+  border:1px solid var(--brume); border-radius:var(--rayon-s); padding:6px 8px; font:inherit}
+.reglages-voix input[type=range]{width:100%; accent-color:var(--laiton)}
+.reglages-voix .plein{grid-column:1/-1; display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.reglages-voix .aide{grid-column:1/-1; margin:0; color:var(--pale); font-size:13px; line-height:1.5}
+.entete-p .mini{white-space:nowrap}
+@media(max-width:480px){
+  .entete-p{gap:10px; flex-wrap:wrap}
+  .entete-p .p-label{display:none}
+  .narration .lib{display:none}
+  .reglages-voix{grid-template-columns:1fr; gap:6px}
+}
 .actions{max-width:64ch; margin:32px auto 0}
 .sec{margin-bottom:26px}
 .sec h3{font-family:"Barlow Semi Condensed",sans-serif; font-size:13px; font-weight:600;
@@ -467,6 +491,20 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
        <div class="entete-p">
          <button class="mini" id="btn-precedent" data-act="precedent" title="Revenir au paragraphe précédent">← Précédent</button>
          <span class="p-lieu"><span class="p-label">Paragraphe</span><span class="pnum num" id="pnum">1</span></span>
+         <span class="narration c" id="narration" hidden>
+           <button class="mini" id="btn-ecouter" aria-pressed="false" title="Lire ce paragraphe à voix haute">🔊 <span class="lib">Écouter</span></button>
+           <button class="mini" id="btn-voix" aria-expanded="false" aria-controls="reglages-voix" title="Réglages de la voix">⚙</button>
+         </span>
+       </div>
+       <div class="reglages-voix c" id="reglages-voix" hidden>
+         <label for="voix-choix">Voix</label><select id="voix-choix"></select>
+         <label for="voix-vitesse">Vitesse</label><input type="range" id="voix-vitesse" min="0.6" max="1.3" step="0.05">
+         <label for="voix-hauteur">Timbre</label><input type="range" id="voix-hauteur" min="0.5" max="1.3" step="0.05">
+         <div class="plein">
+           <label style="color:var(--ecume)"><input type="checkbox" id="voix-auto"> Lire automatiquement chaque nouveau paragraphe</label>
+         </div>
+         <div class="plein"><button class="mini" id="voix-essai">Essayer cette voix</button></div>
+         <p class="aide">Les voix proviennent de votre appareil et de votre navigateur. Les plus naturelles se trouvent souvent dans Edge (voix « Online (Natural) ») ou Safari (voix « Premium » à télécharger dans les réglages d’accessibilité).</p>
        </div>
        <div class="recit" id="recit"></div>
        <div class="actions" id="actions"></div>
@@ -908,7 +946,8 @@ function rendreJauges(){
 function rendreRecit(){
   const p = P[E.paragraphe];
   $('pnum').textContent = E.paragraphe;
-  $('recit').innerHTML = p.texte.split('\n\n').map(t=>`<p>${esc(t)}</p>`).join('');
+  $('recit').innerHTML = p.texte.split('\n\n').map(t=>`<p>${enPhrases(t)}</p>`).join('');
+  Narrateur.apresRendu();
   const bp = $('btn-precedent');
   if(bp) bp.disabled = !E.pileNav.length &&
     !(E.visites.length >= 2 && E.visites[E.visites.length-1] === E.paragraphe);
@@ -1910,6 +1949,7 @@ function demarrerAventure(){
 }
 
 function reinitialiserPartie(){
+  Narrateur.arreter();
   E = etatNeuf();
   try{ localStorage.removeItem(CLE); }catch(err){}
   if(estConnecte()){
@@ -2006,6 +2046,134 @@ $('btn-deconnexion').addEventListener('click', async ()=>{
   rendreBarreCompte();
   statutCompte('Déconnecté — vos données restent en local sur cet appareil.');
 });
+
+/* ============================================================
+   NARRATION : lecture a voix haute (synthese vocale du navigateur)
+   Le texte est decoupe en phrases (<span class="ph">) : on les lit
+   une a une, ce qui permet de surligner la phrase en cours et evite
+   la coupure des longues lectures dans Chrome. Pause = arret
+   memorise ; la reprise repart de la phrase interrompue.
+   ============================================================ */
+function enPhrases(t){
+  const morceaux = t.match(/[^.!?…]*[.!?…]+[\s»”’")]*|[^.!?…]+$/g) || [t];
+  return morceaux.map(m=>`<span class="ph">${esc(m)}</span>`).join('');
+}
+
+const Narrateur = (()=>{
+  const synth = window.speechSynthesis;
+  const CLE_VOIX = 'sr-narration';
+  let prefs = {voix:null, vitesse:0.9, hauteur:0.85, auto:true};
+  try{ Object.assign(prefs, JSON.parse(localStorage.getItem(CLE_VOIX)||'{}')); }catch(e){}
+  const garder = ()=>{ try{ localStorage.setItem(CLE_VOIX, JSON.stringify(prefs)); }catch(e){} };
+
+  let voixFr = [];
+  let enLecture = false;     // une lecture est en cours
+  let actif = false;         // l'utilisateur a lance la narration (pour l'enchainement)
+  let paraLu = null, indice = 0, jeton = 0;
+
+  /* les voix les plus naturelles d'abord : neuronales, puis voix feminines connues */
+  function score(v){
+    const n = v.name.toLowerCase(); let s = 0;
+    if(/natural|neural|online|premium|enhanced|améliorée|wavenet/.test(n)) s += 50;
+    if(/denise|vivienne|eloise|brigitte|amélie|amelie|audrey|aurélie|aurelie|marie|julie|céline|celine|léa|hortense|google/.test(n)) s += 20;
+    if(/fr-fr/i.test(v.lang)) s += 5;
+    if(v.localService===false) s += 3;
+    return s;
+  }
+  function chargerVoix(){
+    voixFr = synth.getVoices().filter(v=>/^fr/i.test(v.lang)).sort((a,b)=>score(b)-score(a));
+    const sel = $('voix-choix');
+    sel.innerHTML = voixFr.length
+      ? voixFr.map(v=>`<option value="${esc(v.name)}">${esc(v.name.replace(/^Microsoft /,''))} — ${esc(v.lang)}</option>`).join('')
+      : '<option value="">Voix française par défaut</option>';
+    if(prefs.voix && voixFr.some(v=>v.name===prefs.voix)) sel.value = prefs.voix;
+  }
+  const voixChoisie = ()=> voixFr.find(v=>v.name===prefs.voix) || voixFr[0] || null;
+
+  function phrases(){ return [...document.querySelectorAll('#recit .ph')]; }
+  function surligner(){
+    phrases().forEach((el,i)=>el.classList.toggle('lu', enLecture && i===indice));
+  }
+  function majBouton(){
+    const b = $('btn-ecouter');
+    b.setAttribute('aria-pressed', enLecture?'true':'false');
+    b.innerHTML = enLecture ? '⏸ <span class="lib">Pause</span>' : '🔊 <span class="lib">'+(indice>0&&paraLu===E.paragraphe?'Reprendre':'Écouter')+'</span>';
+    b.title = enLecture ? 'Mettre la lecture en pause' : 'Lire ce paragraphe à voix haute';
+  }
+
+  function dire(texte, fin){
+    const u = new SpeechSynthesisUtterance(texte);
+    const v = voixChoisie();
+    if(v){ u.voice = v; u.lang = v.lang; } else u.lang = 'fr-FR';
+    u.rate = prefs.vitesse; u.pitch = prefs.hauteur;
+    u.onend = fin; u.onerror = fin;
+    synth.speak(u);
+  }
+
+  function lireSuite(){
+    const t = ++jeton;
+    const ps = phrases();
+    if(indice >= ps.length){ enLecture = false; indice = 0; surligner(); majBouton(); return; }
+    surligner(); majBouton();
+    const el = ps[indice];
+    if(el && el.getBoundingClientRect){
+      const r = el.getBoundingClientRect();
+      if(r.top < 70 || r.bottom > window.innerHeight - 40) el.scrollIntoView({block:'center', behavior:'smooth'});
+    }
+    dire(ps[indice].textContent.trim(), ()=>{
+      if(t !== jeton) return;          // lecture interrompue entre-temps
+      indice++; lireSuite();
+    });
+  }
+
+  function lancer(depuisDebut){
+    if(depuisDebut || paraLu !== E.paragraphe){ indice = 0; paraLu = E.paragraphe; }
+    synth.cancel(); enLecture = true; actif = true; lireSuite();
+  }
+  function pause(){ jeton++; synth.cancel(); enLecture = false; actif = false; surligner(); majBouton(); }
+  function arreter(){ jeton++; if(synth) synth.cancel(); enLecture = false; actif = false; indice = 0; paraLu = null;
+    if(synth && $('btn-ecouter')){ surligner(); majBouton(); } }
+
+  /* appele a chaque rendu du recit : rendre() reconstruit le DOM meme
+     quand le paragraphe ne change pas (effet applique, objet pris...) */
+  function apresRendu(){
+    if(!synth) return;
+    if(paraLu !== null && paraLu !== E.paragraphe){
+      const continuer = actif && prefs.auto && !E.termine;
+      jeton++; synth.cancel(); enLecture = false; indice = 0; paraLu = null;
+      if(continuer){ setTimeout(()=>lancer(true), 250); return; }
+    }
+    surligner(); majBouton();
+  }
+
+  function init(){
+    if(!synth || typeof SpeechSynthesisUtterance === 'undefined') return;
+    $('narration').hidden = false;
+    chargerVoix();
+    if('onvoiceschanged' in synth) synth.addEventListener('voiceschanged', chargerVoix);
+    $('voix-vitesse').value = prefs.vitesse;
+    $('voix-hauteur').value = prefs.hauteur;
+    $('voix-auto').checked = prefs.auto;
+
+    $('btn-ecouter').addEventListener('click', ()=> enLecture ? pause() : lancer(false));
+    $('btn-voix').addEventListener('click', ()=>{
+      const p = $('reglages-voix'); p.hidden = !p.hidden;
+      $('btn-voix').setAttribute('aria-expanded', p.hidden?'false':'true');
+    });
+    const relancer = ()=>{ if(enLecture){ jeton++; synth.cancel(); lireSuite(); } };
+    $('voix-choix').addEventListener('change', e=>{ prefs.voix = e.target.value||null; garder(); relancer(); });
+    $('voix-vitesse').addEventListener('change', e=>{ prefs.vitesse = +e.target.value; garder(); relancer(); });
+    $('voix-hauteur').addEventListener('change', e=>{ prefs.hauteur = +e.target.value; garder(); relancer(); });
+    $('voix-auto').addEventListener('change', e=>{ prefs.auto = e.target.checked; garder(); });
+    $('voix-essai').addEventListener('click', ()=>{
+      pause();
+      dire('Les ombres s’allongent sur l’Osmanlie. Votre route commence ici, voyageur.', ()=>{});
+    });
+    window.addEventListener('pagehide', ()=>synth.cancel());
+  }
+  return {init, apresRendu, arreter};
+})();
+Narrateur.init();
 
 configurerBoutonReprendre();
 actualiserAccueilHistorique();
