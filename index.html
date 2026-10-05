@@ -882,6 +882,19 @@ const R = {
     info('Repas', 'Vous consommez un repas. Le texte du paragraphe vous indique combien de points d’Endurance il vous rend — appliquez-le avec les boutons + de la feuille d’aventure.');
   },
   /* un sort se lance en ajoutant son chiffre au paragraphe en cours */
+  /* calcul libre : "ajoutez ce nombre au present paragraphe" ou
+     "rendez-vous au paragraphe correspondant" */
+  allerParCalcul(ajout, direct){
+    const depuis = E.paragraphe;
+    const cible = direct ? direct : depuis + ajout;
+    if(!P[cible]){
+      return info('Paragraphe introuvable',
+        direct ? `Le paragraphe ${cible} n’existe pas. Vérifiez votre calcul.`
+               : `${depuis} + ${ajout} = ${cible} : ce paragraphe n’existe pas. Vérifiez le nombre.`);
+    }
+    noter(direct ? `Calcul : rendez-vous au ${cible}` : `Calcul : ${depuis} + ${ajout} → ${cible}`, 'g');
+    aller(cible);
+  },
   lancerSort(i){
     const s = E.heptagramme[i];
     if(!s) return;
@@ -1174,6 +1187,10 @@ function rendreRecit(){
     h += `<div class="sec"><p class="aide">Aucun chemin évident ne se présente ici.</p>
       <button class="mini" data-act="accepter-fin">Considérer que l’aventure s’arrête ici</button></div>`;
   }
+
+  /* --- calcul demande par le texte : objet portant un nombre, lettres a additionner...
+     Toujours propose, pour ne jamais trahir un indice secret du livre. --- */
+  h += `<div class="sec"><button class="mini" data-act="calcul">🔢 Le texte vous demande un calcul ?</button></div>`;
 
   /* --- journal --- */
   if(E.journal.length){
@@ -1949,6 +1966,20 @@ document.addEventListener('click', e=>{
     }
     case 'jeter': R.retirerObjet(i); sauver(); rendre(); break;
     case 'sort': R.lancerSort(i); break;
+    case 'calcul': {
+      const ici = E.paragraphe;
+      info('Calculer votre destination',
+        `Si le texte vous demande d’ajouter un nombre au paragraphe en cours (par exemple le nombre gravé sur un objet), indiquez-le : il sera ajouté à ${ici}. Si le texte vous fait calculer directement un numéro de paragraphe, utilisez la seconde case.`,
+        [`Nombre à ajouter à ${ici}`, 'ou : paragraphe où aller'],
+        v=>{
+          const ajout = parseInt(v[0], 10), direct = parseInt(v[1], 10);
+          /* validerInfo() rend la page juste apres : on navigue au tour suivant */
+          if(direct > 0) setTimeout(()=>R.allerParCalcul(0, direct), 0);
+          else if(ajout) setTimeout(()=>R.allerParCalcul(ajout, 0), 0);
+        });
+      ['ch0','ch1'].forEach(id=>{ const c=$(id); if(c){ c.inputMode='numeric'; c.pattern='[0-9]*'; } });
+      break;
+    }
     case 'nouvel-objet':
       info('Objet ramassé','Notez l’objet tel que le texte le nomme.',['Nom de l’objet'],
         v=>{ if(v[0].trim()) R.ajouterObjet(v[0].trim()); }); break;
