@@ -320,6 +320,29 @@ textarea{width:100%; background:var(--voile); border:1px solid var(--brume); col
   min-height:26px; margin-bottom:12px}
 .verdict.win{color:var(--jade)} .verdict.lose{color:var(--sang)}
 .rangee{display:flex; gap:9px; flex-wrap:wrap; align-items:center}
+
+/* --- points de sauvegarde --- */
+.entete-p .mini{white-space:nowrap}
+#btn-sauver-point{margin-left:auto}
+.points{display:flex; flex-direction:column; gap:6px; margin-top:8px}
+.point{background:var(--voile); border:1px solid transparent; border-radius:var(--rayon-m);
+  padding:9px 10px; display:grid; grid-template-columns:1fr auto; gap:4px 8px; align-items:center}
+.point.recent{border-color:var(--hairline); border-left:3px solid var(--laiton)}
+.point-nom{font-family:"Amiri",serif; font-size:16px; line-height:1.3; color:var(--ecume);
+  overflow-wrap:anywhere}
+.point-det{grid-column:1; font-family:"Barlow Semi Condensed",sans-serif; font-size:12.5px; color:var(--pale); line-height:1.4}
+.point-act{grid-column:2; grid-row:1 / span 2; display:flex; gap:5px; align-items:center}
+.point-act .mini{padding:5px 10px; min-height:32px; font-size:13.5px}
+.point-act .suppr{background:none; border:none; color:var(--pale); font-size:16px; padding:4px 6px; min-height:0}
+.point-act .suppr:hover{color:var(--sang)}
+.accueil-points{margin-top:22px; text-align:left}
+.accueil-points h3{font-family:"Barlow Semi Condensed",sans-serif; font-size:13px; font-weight:600;
+  color:var(--pale); text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px}
+@media(max-width:480px){
+  .entete-p{gap:10px}
+  .entete-p .p-label{display:none}
+  #btn-sauver-point .lib{display:none}
+}
 select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume);
   font-family:"Barlow Semi Condensed",sans-serif; font-size:15px; padding:8px 10px; border-radius:var(--rayon-m);
   min-height:var(--cible-min)}
@@ -426,6 +449,7 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
   <p class="aide" style="margin-top:18px">Vous partez avec un Poignard (2), un Bonus de Combat de +2,
      des Provisions (4) et pas une pièce d’or.</p>
   <p class="aide" id="resume-historique" style="margin-top:10px"></p>
+  <div class="accueil-points" id="accueil-points"></div>
  </div>
 </section>
 
@@ -467,6 +491,7 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
        <div class="entete-p">
          <button class="mini" id="btn-precedent" data-act="precedent" title="Revenir au paragraphe précédent">← Précédent</button>
          <span class="p-lieu"><span class="p-label">Paragraphe</span><span class="pnum num" id="pnum">1</span></span>
+         <button class="mini" id="btn-sauver-point" data-act="creer-point" title="Créer un point de sauvegarde ici">💾 <span class="lib">Sauvegarder</span></button>
        </div>
        <div class="recit" id="recit"></div>
        <div class="actions" id="actions"></div>
@@ -509,6 +534,7 @@ const $   = id => document.getElementById(id);
 const CLE = 'sombres-ressacs-v1';
 const CLE_HISTOIRE = 'sombres-ressacs-historique-v1';
 const CLE_THEME = 'sombres-ressacs-theme';
+const CLE_POINTS = 'sombres-ressacs-points-v1';
 
 /* ---------- theme clair / sombre, au choix (par defaut : preference systeme) ---------- */
 function themeActuel(){
@@ -562,7 +588,9 @@ function rendreBarreCompte(){
 /* --- sauvegarde en cours : table "parties", une ligne par joueur --- */
 async function pousserSauvegarde(){
   if(!estConnecte()) return;
-  try{ await sb.from('parties').upsert({ user_id: session.user.id, etat: E, mis_a_jour: new Date().toISOString() }); }
+  /* les points de sauvegarde voyagent dans la meme ligne, sous __points */
+  const etat = Object.assign({}, E, { __points: lirePoints() });
+  try{ await sb.from('parties').upsert({ user_id: session.user.id, etat, mis_a_jour: new Date().toISOString() }); }
   catch(e){ /* pas de reseau : le local reste la source de verite, on retentera au prochain sauver() */ }
 }
 async function tirerSauvegarde(){
@@ -592,6 +620,10 @@ async function tirerHistorique(){
 async function synchroniserApresConnexion(){
   statutCompte('Synchronisation…');
   const [sauvCloud, histCloud] = await Promise.all([tirerSauvegarde(), tirerHistorique()]);
+  if(sauvCloud && sauvCloud.__points){
+    ecrirePoints(fusionnerPoints(lirePoints(), sauvCloud.__points));
+    delete sauvCloud.__points;
+  }
   if(sauvCloud && sauvCloud.habilete && sauvCloud.habilete.initiale){
     localStorage.setItem(CLE, JSON.stringify(sauvCloud));
   } else {
@@ -606,6 +638,7 @@ async function synchroniserApresConnexion(){
     sauverHistoire(fusion.slice(0,300));
     aEnvoyer.forEach(pousserHistoriqueEntree);
   }
+  if(sauvCloud && sauvCloud.habilete && sauvCloud.habilete.initiale) pousserSauvegarde();
   statutCompte('');
   rendreBarreCompte();
   if(typeof configurerBoutonReprendre==='function') configurerBoutonReprendre();
@@ -635,6 +668,102 @@ function ajouterAHistoire(entree){
   if(liste.length>300) liste.length = 300;
   sauverHistoire(liste);
   pousserHistoriqueEntree(entree);
+}
+
+/* ============================================================
+   POINTS DE SAUVEGARDE
+   Chaque point est une copie complete de l'etat de la partie
+   (caracteristiques, inventaire, armes, sorts, carte, parcours,
+   journal...). Stockes sur l'appareil, et dans le compte si connecte.
+   "supprimes" garde la trace des points effaces pour que la
+   synchronisation ne les fasse pas revenir d'un autre appareil.
+   ============================================================ */
+function lirePoints(){
+  try{
+    const b = JSON.parse(localStorage.getItem(CLE_POINTS)||'null');
+    if(b && Array.isArray(b.points)) return {points:b.points, supprimes:b.supprimes||[]};
+  }catch(e){}
+  return {points:[], supprimes:[]};
+}
+function ecrirePoints(o){
+  o.points.sort((a,b)=> new Date(b.date) - new Date(a.date));
+  try{ localStorage.setItem(CLE_POINTS, JSON.stringify(o)); }
+  catch(e){ info('Sauvegarde impossible', 'La mémoire de ce navigateur est pleine : supprimez d’anciens points de sauvegarde puis réessayez.'); return false; }
+  return true;
+}
+function fusionnerPoints(a, b){
+  const supprimes = [...new Set([...(a.supprimes||[]), ...(b.supprimes||[])])];
+  const parId = new Map();
+  [...(a.points||[]), ...(b.points||[])].forEach(p=>{ if(!supprimes.includes(p.id)) parId.set(p.id, p); });
+  return {points:[...parId.values()], supprimes};
+}
+function dateCourte(iso){
+  try{ return new Date(iso).toLocaleString('fr-FR', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); }
+  catch(e){ return ''; }
+}
+function listePointsHTML(pts){
+  return `<div class="points">` + pts.map((p,i)=>
+    `<div class="point${i===0?' recent':''}">
+       <div class="point-nom">${esc(p.nom)}</div>
+       <div class="point-det">${esc(p.perso||'Sans nom')} · § ${p.paragraphe} · H ${p.hab} E ${p.end} C ${p.cha} · ${p.or} or · ${esc(dateCourte(p.date))}</div>
+       <div class="point-act">
+         <button class="mini" data-act="reprendre-point" data-id="${esc(p.id)}">Reprendre</button>
+         <button class="suppr" data-act="suppr-point" data-id="${esc(p.id)}" aria-label="Supprimer le point ${esc(p.nom)}" title="Supprimer">×</button>
+       </div>
+     </div>`).join('') + `</div>`;
+}
+function creerPoint(){
+  if(E.termine || !E.habilete.initiale) return;
+  const defaut = `Paragraphe ${E.paragraphe}`;
+  info('Nouveau point de sauvegarde',
+    `Toute votre progression au paragraphe ${E.paragraphe} sera conservée : caractéristiques, inventaire, armes, sorts, carte et parcours. Vous pourrez y revenir à tout moment.`,
+    ['Nom du point (facultatif)'],
+    v=>{
+      const o = lirePoints();
+      const copie = JSON.parse(JSON.stringify(E));
+      o.points.push({
+        id: 'pt' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        nom: (v[0]||'').trim() || defaut,
+        date: new Date().toISOString(),
+        paragraphe: E.paragraphe, perso: E.nom,
+        hab: E.habilete.actuelle, end: E.endurance.actuelle, cha: E.chance.actuelle, or: E.or,
+        etat: copie
+      });
+      if(ecrirePoints(o)) noter(`Point de sauvegarde créé au § ${E.paragraphe}`, 'g');
+      /* validerInfo() appelle ensuite sauver() + rendre() : le cloud et l'affichage suivent */
+    });
+  const ch = $('ch0'); if(ch){ ch.value = ''; ch.placeholder = defaut; ch.maxLength = 60; }
+}
+function restaurerPoint(id){
+  const p = lirePoints().points.find(x=>x.id===id);
+  if(!p) return;
+  const etat = JSON.parse(JSON.stringify(p.etat));
+  /* ce que le joueur a appris en jouant survit au retour en arriere :
+     ses notes et ses morts de cette lecture (meme personnage) */
+  const memePerso = E.habilete.initiale && E.nom === etat.nom;
+  if(memePerso){
+    const vus = new Set((etat.sombresDestins||[]).map(d=>d.paragraphe+'|'+d.cause));
+    (E.sombresDestins||[]).forEach(d=>{ if(!vus.has(d.paragraphe+'|'+d.cause)) (etat.sombresDestins=etat.sombresDestins||[]).push(d); });
+    if(E.notes && E.notes.trim()) etat.notes = E.notes;
+  }
+  E = Object.assign(etatNeuf(), etat);
+  E.termine = null;
+  noter(`Retour au point « ${p.nom} »`, 'g');
+  sauver();
+  $('creation').style.display='none'; $('tutoriel').style.display='none';
+  $('fond-info').classList.remove('on');
+  $('jeu').classList.add('on');
+  mobileMontrerRecit();
+  rendre(); window.scrollTo({top:0, behavior:'instant'});
+}
+function supprimerPoint(id){
+  const o = lirePoints();
+  o.points = o.points.filter(x=>x.id!==id);
+  if(!o.supprimes.includes(id)) o.supprimes.push(id);
+  ecrirePoints(o);
+  pousserSauvegarde();
+  if($('jeu').classList.contains('on')) rendre();
+  actualiserAccueilPoints();
 }
 
 /* paragraphe où chaque sortilège s'apprend, d'après le texte du PDF */
@@ -909,6 +1038,8 @@ function rendreRecit(){
   const p = P[E.paragraphe];
   $('pnum').textContent = E.paragraphe;
   $('recit').innerHTML = p.texte.split('\n\n').map(t=>`<p>${esc(t)}</p>`).join('');
+  const bs = $('btn-sauver-point');
+  if(bs) bs.disabled = !!E.termine;
   const bp = $('btn-precedent');
   if(bp) bp.disabled = !E.pileNav.length &&
     !(E.visites.length >= 2 && E.visites[E.visites.length-1] === E.paragraphe);
@@ -927,6 +1058,8 @@ function rendreRecit(){
       + `</p><div class="rangee" style="justify-content:center">`
       + `<button class="btn" data-act="recommencer-mort">Recommencer au début</button>`
       + (mort?`<button class="btn creux" data-act="annuler-mort">Revenir en arrière</button>`:'')
+      + (mort && lirePoints().points.length ? (()=>{ const d = lirePoints().points[0];
+          return `<button class="btn creux" data-act="reprendre-point" data-id="${esc(d.id)}">Reprendre au dernier point de sauvegarde (§ ${d.paragraphe})</button>`; })() : '')
       + `</div><p class="aide" style="margin-top:16px">`
       + `<button class="mini" data-act="voir-histoire">Consulter mes aventures précédentes`
       + (nbHist?` (${nbHist})`:'') + `</button></p></div>`;
@@ -1132,6 +1265,12 @@ function rendreFeuille(){
         ? `<div class="aide">${E.sombresDestins.map(d=>d.paragraphe).join(', ')}</div>`
         : `<div class="aide">Aucune fin funeste consignée pour l’instant.</div>`)
     + `<button class="mini" data-act="voir-histoire" style="margin-top:8px">Toutes mes aventures (${chargerHistoire().length})</button></details>`;
+
+  const pts = lirePoints().points;
+  h += `<details class="bloc-f" ${(large||pts.length)?'open':''}><summary>💾 Points de sauvegarde (${pts.length})</summary>`
+    + `<button class="mini" data-act="creer-point" ${E.termine?'disabled':''}>Sauvegarder ici (§ ${E.paragraphe})</button>`
+    + (pts.length ? listePointsHTML(pts) : `<div class="aide" style="margin-top:8px">Aucun point pour l’instant. Sauvegardez avant un passage risqué pour pouvoir y revenir.</div>`)
+    + `</details>`;
 
   h += `<div class="bloc-f rangee">
       <button class="mini" data-act="recommencer">Recommencer</button>
@@ -1603,7 +1742,14 @@ function ouvrirRepere(id, coords){
   $('fond-repere').classList.add('on');
   const champ = $('repere-titre'); if(champ) champ.focus();
 }
+function actualiserAccueilPoints(){
+  const el = $('accueil-points'); if(!el) return;
+  const pts = lirePoints().points;
+  el.innerHTML = pts.length
+    ? `<h3>Reprendre à un point de sauvegarde</h3>${listePointsHTML(pts)}` : '';
+}
 function actualiserAccueilHistorique(){
+  actualiserAccueilPoints();
   const el = $('resume-historique');
   if(!el) return;
   const hist = chargerHistoire();
@@ -1764,6 +1910,26 @@ document.addEventListener('click', e=>{
       break;
     }
     case 'recommencer-mort': reinitialiserPartie(); break;
+    case 'creer-point': creerPoint(); break;
+    case 'reprendre-point': {
+      const id = b.dataset.id;
+      const pt = lirePoints().points.find(x=>x.id===id);
+      if(!pt) break;
+      /* partie en cours, vivante : on previent que la progression non sauvegardee sera perdue */
+      if($('jeu').classList.contains('on') && !E.termine)
+        confirmerAction('Reprendre à ce point',
+          `Revenir à « ${pt.nom} » (paragraphe ${pt.paragraphe}) ? Tout ce qui s’est passé depuis votre dernière sauvegarde sera perdu, sauf vos notes.`,
+          ()=>restaurerPoint(id));
+      else restaurerPoint(id);
+      break;
+    }
+    case 'suppr-point': {
+      const id = b.dataset.id;
+      const pt = lirePoints().points.find(x=>x.id===id);
+      if(!pt) break;
+      confirmerAction('Supprimer ce point', `Effacer définitivement « ${pt.nom} » ?`, ()=>supprimerPoint(id));
+      break;
+    }
     case 'recommencer':
       confirmerAction('Recommencer', 'Abandonner cette partie et repartir de zéro ?', reinitialiserPartie);
       break;
@@ -1913,7 +2079,7 @@ function reinitialiserPartie(){
   E = etatNeuf();
   try{ localStorage.removeItem(CLE); }catch(err){}
   if(estConnecte()){
-    try{ sb.from('parties').delete().eq('user_id', session.user.id); }catch(e){}
+    pousserSauvegarde();   // etat vierge + points de sauvegarde conserves
   }
   tirage = null; tutoIndex = 0;
   $('jeu').classList.remove('on'); $('tutoriel').style.display='none';
