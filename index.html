@@ -249,7 +249,11 @@ details.bloc-f summary:hover{color:var(--ecume)}
 .stat-remplissage{height:100%; background:var(--laiton); border-radius:3px; transition:width var(--doux)}
 .stat-ligne.bas .stat-remplissage{background:var(--sang)}
 .stat-ligne.bas .stat-valeurs{color:var(--sang)}
-.stat-ctrl{display:flex; gap:6px}
+.stat-ctrl{display:flex; gap:6px; align-items:center}
+.max-ctrl{margin-left:auto; display:flex; gap:6px; align-items:center}
+.max-lab{font-family:"Barlow Semi Condensed",sans-serif; font-size:12px; color:var(--pale);
+  text-transform:uppercase; letter-spacing:.05em; margin-right:2px}
+.max-ctrl .pm{border-style:dashed}
 .ressources-ligne{display:grid; grid-template-columns:1fr 1fr; gap:8px}
 .ressource{background:var(--voile); border-radius:var(--rayon-m); padding:8px 10px}
 .r-nom{display:block; font-size:12.5px; color:var(--pale); margin-bottom:5px}
@@ -310,6 +314,16 @@ textarea{width:100%; background:var(--voile); border:1px solid var(--brume); col
 .en-ctrl{display:flex; align-items:center; justify-content:center; gap:10px}
 .en-ctrl .en{font-size:32px; min-width:2ch}
 .en-ctrl .pm{width:36px; height:36px; font-size:17px}
+@media(max-width:520px){
+  .combattants{grid-template-columns:1fr 1fr; gap:8px}
+  .combattants .vs{display:none}
+  .cbt{padding:10px 6px; min-width:0; text-align:center}
+  .en-ctrl{gap:6px}
+  .en-ctrl .en{font-size:28px}
+  .modale{padding:20px 16px}
+}
+.jet-cbt{display:flex; align-items:baseline; gap:12px; margin:10px 0 8px}
+.jet-cbt .v{font-family:"Barlow Semi Condensed",sans-serif; font-size:34px; font-weight:600; color:var(--laiton); line-height:1}
 .vs{color:var(--pale); font-family:"Barlow Semi Condensed",sans-serif; font-size:14px}
 .fa{display:grid; grid-template-columns:1fr 1fr; gap:12px; text-align:center;
   font-family:"Barlow Semi Condensed",sans-serif; margin-bottom:14px}
@@ -830,18 +844,18 @@ const R = {
   },
   armeCourante(){ return E.armes.find(a=>a.nom===E.armeEquipee) || {nom:'Mains nues', potentiel:0, bc:0}; },
   bonusCombat(){ return E.armeEquipee ? R.armeCourante().bc : 0; },
-  /* maitrise : +1 apres un combat mene de bout en bout et remporte, plafond = potentiel (max 3) */
+  /* maitrise : +1 apres un combat mene de bout en bout et remporte, plafond = potentiel de l'arme */
   progresserArme(nom){
     const a = E.armes.find(x=>x.nom===nom);
     if(!a) return null;
-    const plafond = Math.min(3, a.potentiel);
+    const plafond = a.potentiel;
     if(a.bc < plafond){ a.bc++; noter(`Maîtrise du ${nom} : Bonus de Combat ${a.bc>=0?'+':''}${a.bc}`,'g'); return a.bc; }
     return null;
   },
   modifierBC(nom, delta){
     const a = E.armes.find(x=>x.nom===nom);
     if(!a) return null;
-    const plafond = Math.min(3, a.potentiel);
+    const plafond = a.potentiel;
     const plancher = -a.potentiel;
     const reel = Math.max(plancher, Math.min(plafond, a.bc + delta)) - a.bc;
     a.bc += reel;
@@ -890,6 +904,20 @@ const R = {
       detail: n===2 ? `${vals[0]} + ${vals[1]} = ${total}` : `${total}` };
     noter(`Lancer de ${n===2?'2 dés':'1 dé'} : ${E.dernierJet.detail}`);
     sauver(); rendreFeuille();
+  },
+  /* evenement rare : le texte fait gagner (ou perdre) des points de total de depart.
+     Monter le maximum monte aussi la valeur actuelle du meme nombre ; le baisser
+     ramene la valeur actuelle sous le nouveau plafond si besoin. */
+  modifierMax(carac, delta){
+    const c = E[carac];
+    const avant = c.initiale;
+    c.initiale = Math.max(1, c.initiale + delta);
+    const reel = c.initiale - avant;
+    if(!reel) return 0;
+    c.actuelle = reel > 0 ? Math.min(c.initiale, c.actuelle + reel) : Math.min(c.actuelle, c.initiale);
+    const lib = {habilete:'Habileté', endurance:'Endurance', chance:'Chance'}[carac] || carac;
+    noter(`${lib} maximum ${reel>0?'+':''}${reel} (désormais ${c.initiale})`, reel>0?'g':'r');
+    return reel;
   },
   appliquerJet(carac, signe){
     if(!E.dernierJet) return;
@@ -1170,6 +1198,10 @@ function rendreFeuille(){
       <div class="stat-ctrl">
         <button class="pm" data-act="mod" data-c="${cle}" data-d="-1" aria-label="${nom} moins un">−</button>
         <button class="pm" data-act="mod" data-c="${cle}" data-d="1" aria-label="${nom} plus un">+</button>
+        <span class="max-ctrl"><span class="max-lab">Maximum</span>
+          <button class="pm" data-act="mod-max" data-c="${cle}" data-d="-1" aria-label="${nom} maximum moins un" title="Baisser le maximum" ${c.initiale<=1?'disabled':''}>−</button>
+          <button class="pm" data-act="mod-max" data-c="${cle}" data-d="1" aria-label="${nom} maximum plus un" title="Augmenter le maximum (et la valeur actuelle)">+</button>
+        </span>
       </div></div>`;
   };
   let h = `<h2>Feuille d’aventure</h2>
@@ -1192,7 +1224,7 @@ function rendreFeuille(){
         <span style="flex:1">${esc(a.nom)} <span style="color:var(--pale)">(${a.potentiel})</span></span>
         <button class="pm" data-act="mod-bc" data-n="${esc(a.nom)}" data-d="-1" title="Diminuer le Bonus de Combat" ${a.bc<=-a.potentiel?'disabled':''}>−</button>
         <span class="bc num">${a.bc>=0?'+':''}${a.bc}</span>
-        <button class="pm" data-act="mod-bc" data-n="${esc(a.nom)}" data-d="1" title="Augmenter le Bonus de Combat" ${a.bc>=Math.min(3,a.potentiel)?'disabled':''}>+</button>
+        <button class="pm" data-act="mod-bc" data-n="${esc(a.nom)}" data-d="1" title="Augmenter le Bonus de Combat" ${a.bc>=a.potentiel?'disabled':''}>+</button>
         <button class="pm" data-act="equiper" data-n="${esc(a.nom)}" title="Équiper">${a.nom===E.armeEquipee?'✓':'○'}</button>
       </div>`).join('')
     + `<div class="arme ${E.armeEquipee===null?'equipee':''}"><span style="flex:1">Mains nues</span>
@@ -1294,6 +1326,7 @@ function ouvrirCombat(i){
     armeDebut:E.armeEquipee, memeArme:true,
     fini:false, dernier:null
   };
+  E.dernierJet = null;
   $('fond-combat').classList.add('on');
   rendreCombat();
 }
@@ -1307,7 +1340,11 @@ function rendreCombat(){
     <div class="combattants">
       <div class="cbt ${d&&d.qui==='joueur'?'touche':''}">
         <div class="nm">${esc(E.nom||'Vous')}</div>
-        <div class="en num">${E.endurance.actuelle}</div>
+        <div class="en-ctrl">
+          <button class="pm" data-act="cbt-end" data-d="-1" aria-label="Votre Endurance moins un">−</button>
+          <span class="en num">${E.endurance.actuelle}</span>
+          <button class="pm" data-act="cbt-end" data-d="1" aria-label="Votre Endurance plus un">+</button>
+        </div>
         <div class="hb">Habileté ${E.habilete.actuelle}</div>
       </div>
       <div class="vs">contre</div>
@@ -1359,7 +1396,22 @@ function rendreCombat(){
         </div>
         <p class="aide" style="margin-top:8px">Changer d’arme en plein combat est permis, mais vous
         ne pourrez plus gagner de maîtrise sur ce combat.</p>
-      </div>`;
+      </div>
+      <div class="bloc-f des-combat" style="border-top:1px solid var(--voile);padding-top:12px">
+        <h4 class="c">🎲 Dés pour une règle de ce combat</h4>
+        <div class="rangee">
+          <button class="mini" data-act="cbt-de" data-n="1">Lancer 1 dé</button>
+          <button class="mini" data-act="cbt-de" data-n="2">Lancer 2 dés</button>
+        </div>`
+      + (E.dernierJet ? `<div class="jet-cbt">
+          <span class="v num">${E.dernierJet.total}</span>
+          ${E.dernierJet.n===2?`<span class="aide">${esc(E.dernierJet.detail)}</span>`:''}
+        </div>
+        <div class="rangee">
+          <button class="mini" data-act="cbt-jet" data-cible="joueur">− ${E.dernierJet.total} à votre Endurance</button>
+          ${C.endAdv!==null?`<button class="mini" data-act="cbt-jet" data-cible="adv">− ${E.dernierJet.total} à l’adversaire</button>`:''}
+        </div>` : `<p class="aide" style="margin-top:8px">Pour les règles particulières du texte. Le combat continue là où il en est.</p>`)
+      + `</div>`;
   }
   $('m-combat').innerHTML = h;
 }
@@ -1863,6 +1915,38 @@ document.addEventListener('click', e=>{
     case 'prov': E.provisions=Math.max(0,E.provisions+d); sauver(); rendre(); break;
     case 'equiper': E.armeEquipee = b.dataset.n || null; sauver(); rendre(); break;
     case 'mod-bc': R.modifierBC(b.dataset.n, d); sauver(); rendre(); break;
+    case 'mod-max': R.modifierMax(b.dataset.c, d); sauver(); rendre(); break;
+    case 'cbt-end': {
+      if(!C) break;
+      R.modifier('endurance', d, 'Combat, à la main :');
+      if(E.endurance.actuelle<=0){ C.fini=true; C.issue='defaite'; }
+      sauver(); rendreJauges(); rendreFeuille(); rendreCombat(); break;
+    }
+    case 'cbt-de': {
+      if(!C) break;
+      R.lancerDes(Number(b.dataset.n)); rendreCombat(); break;
+    }
+    case 'cbt-jet': {
+      if(!C || !E.dernierJet) break;
+      const t = E.dernierJet.total;
+      if(b.dataset.cible==='adv'){
+        if(C.endAdv!==null){
+          C.endAdv = Math.max(0, C.endAdv - t);
+          noter(`Jet de dés : ${C.nom} −${t} Endurance`, 'g');
+        }
+        E.dernierJet = null;
+        if(C.endAdv===0){
+          C.fini=true; C.issue='victoire';
+          C.dernier = {...(C.dernier||{}), qui:'adv', txt:`${C.nom} s’effondre. Vous êtes vainqueur.`, dJ:[0,0], dA:[0,0]};
+          if(C.memeArme && E.armeEquipee) R.progresserArme(E.armeEquipee);
+        }
+      } else {
+        R.modifier('endurance', -t, 'Jet de dés :');
+        E.dernierJet = null;
+        if(E.endurance.actuelle<=0){ C.fini=true; C.issue='defaite'; }
+      }
+      sauver(); rendreJauges(); rendreFeuille(); rendreCombat(); break;
+    }
     case 'jeter': R.retirerObjet(i); sauver(); rendre(); break;
     case 'sort': R.lancerSort(i); break;
     case 'nouvel-objet':
