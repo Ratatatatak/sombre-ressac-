@@ -795,6 +795,44 @@ function supprimerPoint(id){
 /* paragraphe où chaque sortilège s'apprend, d'après le texte du PDF */
 const SORT_PAR_PARA = {};
 (DB.sortileges||[]).forEach(s=>{ SORT_PAR_PARA[s.appris_en] = s; });
+/* ============================================================
+   DONS PERMANENTS DE LA FIN DU TOME 1
+   §295 : Blake double les degats de vos Assauts gagnes
+   §293 : botte du katana (double six au 1er Assaut = adversaire tue)
+   §33 / §104 / §236 : le conseil donne a Blake, utile plus tard
+   Rejoue a chaque rendu : rattrape aussi les parties deja avancees,
+   grace aux paragraphes deja traverses dans le tome 1.
+   ============================================================ */
+const CONSEILS_BLAKE = {33:'protéger Sanakkale avec la troupe des Renards', 104:'retourner à Varna renforcer les troupes de Cyaxare', 236:'faire comme bon lui semble'};
+function visitesTome1(){
+  if(E.tome===2) return (E.souvenirsTome1 && E.souvenirsTome1.visites) || [];
+  return E.visites || [];
+}
+function majPouvoirs(){
+  if(!E || !E.habilete || !E.habilete.initiale) return;
+  if(!E.pouvoirs) E.pouvoirs = {};
+  const v = visitesTome1();
+  const permanents = E.effetsPermanents || (E.effetsPermanents = []);
+  const ajouter = (txt)=>{ if(!permanents.includes(txt)) permanents.push(txt); };
+  if(v.includes(295) && !E.pouvoirs.degatsDoubles){
+    E.pouvoirs.degatsDoubles = true;
+    ajouter('Enseignement de Blake : vos Assauts gagnés infligent des pertes doublées (4 au lieu de 2)');
+    noter('Don de Blake : vos Assauts gagnés infligent désormais 4 points','g');
+  }
+  if(v.includes(293) && !E.pouvoirs.botteKatana){
+    E.pouvoirs.botteKatana = true;
+    ajouter('Botte du katana : au 1er Assaut, un double six avec le Katana tue l’adversaire');
+    const k = E.armes.find(a=>/katana/i.test(a.nom));
+    if(k && k.bc < k.potentiel){ k.bc++; noter(`Leçon de Blake : Bonus de Combat du ${k.nom} ${k.bc>=0?'+':''}${k.bc}`,'g'); }
+    noter('Don de Blake : botte du katana apprise','g');
+  }
+  let conseil = null;
+  v.forEach(n=>{ if(CONSEILS_BLAKE[n]) conseil = n; });
+  if(conseil && E.pouvoirs.conseilBlake !== conseil){
+    E.pouvoirs.conseilBlake = conseil;
+    ajouter(`Conseil donné à Blake : ${CONSEILS_BLAKE[conseil]}`);
+  }
+}
 let tomeApplique = 1;
 /* bascule P et les sorts a apprendre sur le tome de la partie en cours */
 function appliquerTome(){
@@ -830,6 +868,7 @@ function passerAuTome2(n){
 function etatNeuf(){
   return {
     nom:'', paragraphe:1, tome:1, souvenirsTome1:null,
+    pouvoirs:{},              // dons permanents reçus dans le texte (Blake, fin du tome 1)
     habilete:{initiale:0, actuelle:0},
     endurance:{initiale:0, actuelle:0},
     chance:{initiale:0, actuelle:0},
@@ -1106,7 +1145,7 @@ function reculer(){
 /* ============================================================
    RENDU
    ============================================================ */
-function rendre(){ appliquerTome(); rendreJauges(); rendreRecit(); rendreFeuille(); }
+function rendre(){ appliquerTome(); majPouvoirs(); rendreJauges(); rendreRecit(); rendreFeuille(); }
 
 function rendreJauges(){
   const j=[['Habileté',E.habilete],['Endurance',E.endurance],['Chance',E.chance]];
@@ -1161,6 +1200,11 @@ function rendreRecit(){
       paragraphe ${E.retourSort.depuis}. Si ce texte ne présente pas de suite logique avec votre
       action, le sort a été lancé mais reste sans effet.
       <button class="mini" data-act="retour-sort" style="margin-left:6px">Le sort n’a rien changé — revenir au ${E.retourSort.depuis}</button></div>`;
+  }
+
+  /* --- le texte demande un souvenir que l'app a garde --- */
+  if(E.pouvoirs && E.pouvoirs.conseilBlake && /suggéré à Blake/.test(p.texte)){
+    h += `<div class="avis">Votre souvenir du tome 1 : vous avez conseillé à Blake de ${esc(CONSEILS_BLAKE[E.pouvoirs.conseilBlake])}.</div>`;
   }
 
   /* --- un sort vient d'etre note sur l'Heptagramme --- */
@@ -1498,10 +1542,18 @@ function assaut(){
   const faA = dA[0]+dA[1]+C.habAdv;
   C.assauts++;
   let qui='nul', txt='Vous avez l’un et l’autre évité les coups.';
-  if(faJ>faA){
-    qui='adv'; txt='Vous avez blessé votre adversaire : −2 Endurance.';
+  const degats = (E.pouvoirs && E.pouvoirs.degatsDoubles) ? 4 : 2;
+  const botte = C.assauts===1 && dJ[0]===6 && dJ[1]===6 && E.pouvoirs && E.pouvoirs.botteKatana
+    && E.armeEquipee && /katana/i.test(E.armeEquipee);
+  if(botte){
+    qui='adv'; txt='Botte du katana : double six au 1er Assaut, vous tranchez votre adversaire d’un seul coup !';
     C.victoiresJoueur++;
-    if(C.endAdv!==null) C.endAdv = Math.max(0, C.endAdv-2);
+    if(C.endAdv!==null) C.endAdv = 0;
+    noter(`Botte du katana contre ${C.nom}`,'g');
+  } else if(faJ>faA){
+    qui='adv'; txt=`Vous avez blessé votre adversaire : −${degats} Endurance${degats===4?' (enseignement de Blake)':''}.`;
+    C.victoiresJoueur++;
+    if(C.endAdv!==null) C.endAdv = Math.max(0, C.endAdv-degats);
   } else if(faJ<faA){
     qui='joueur'; txt='Vous avez été blessé : −2 Endurance.';
     C.victoiresAdv++;
@@ -1511,7 +1563,7 @@ function assaut(){
   if(E.endurance.actuelle<=0){ C.fini=true; C.issue='defaite'; }
   else if(C.endAdv===0){
     C.fini=true; C.issue='victoire';
-    C.dernier.txt = `${C.nom} s’effondre. Vous êtes vainqueur.`;
+    C.dernier.txt = (botte ? txt+' ' : '') + `${C.nom} s’effondre. Vous êtes vainqueur.`;
     if(C.memeArme && E.armeEquipee) R.progresserArme(E.armeEquipee);
   }
   rendreJauges(); rendreFeuille(); rendreCombat();
