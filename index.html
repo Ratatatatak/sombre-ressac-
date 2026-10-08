@@ -1243,7 +1243,9 @@ function rendreRecit(){
 
   /* --- calcul demande par le texte : objet portant un nombre, lettres a additionner...
      Toujours propose, pour ne jamais trahir un indice secret du livre. --- */
-  h += `<div class="sec"><button class="mini" data-act="calcul">🔢 Le texte vous demande un calcul ?</button></div>`;
+  h += `<div class="sec"><button class="mini" data-act="calcul">🔢 Le texte vous demande un calcul ?</button>`
+    + (E.tome===2 ? ` <button class="mini" data-act="prologue">📜 Relire le prologue du tome 2</button>` : '')
+    + `</div>`;
 
   /* --- journal --- */
   if(E.journal.length){
@@ -1933,6 +1935,7 @@ document.addEventListener('click', e=>{
   switch(a){
     case 'aller': aller(Number(b.dataset.n)); break;
     case 'tome2': passerAuTome2(Number(b.dataset.n)); break;
+    case 'prologue': ouvrirPrologue(); break;
     case 'retour-sort': { const r=E.retourSort.depuis; E.retourSort=null; aller(r); break; }
     case 'accepter-fin': mourir(''); break;
     case 'combat': ouvrirCombat(i); break;
@@ -2217,6 +2220,7 @@ function pagesTuto(){ return tutoMode==='lore' ? pagesPrologue2() : (DB.regles |
 function finTuto(){ if(tutoMode==='lore') finirPrologue(); else demarrerAventure(); }
 function ouvrirPrologue(){
   tutoMode = 'lore'; tutoIndex = 0;
+  if(!E.prologueT2Vu){ E.prologueT2Vu = true; sauver(); }
   $('jeu').classList.remove('on');
   $('tuto-passer').textContent = 'Passer et reprendre l’aventure';
   $('tutoriel').style.display = 'flex';
@@ -2313,6 +2317,8 @@ function configurerBoutonReprendre(){
       verifierApprentissageSort();      // rattrape une partie bloquee avant ce correctif
       sauver();
       $('creation').style.display='none'; $('jeu').classList.add('on'); rendre();
+      /* partie arrivee au tome 2 avant l'ajout du prologue : on le propose une fois */
+      if(E.tome===2 && !E.prologueT2Vu) ouvrirPrologue();
     };
   } else {
     btn.style.display='none';
