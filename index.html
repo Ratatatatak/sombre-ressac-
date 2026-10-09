@@ -2313,17 +2313,47 @@ document.addEventListener('click', e=>{
       break;
   }
 });
+/* ---------- position de lecture ----------
+   Chaque vue (Récit / Feuille) garde sa propre position : revenir au récit
+   après une modification sur la feuille reprend la lecture là où elle était.
+   La position du récit est aussi gardée dans ce navigateur, pour la reprise. */
+const CLE_LECTURE = 'sombres-ressacs-lecture-v1';
+const posVues = {recit:0, feuille:0, cle:null};
+function clePara(){ return (E.tome||1)+':'+E.paragraphe; }
+function vueActuelle(){ const pl = document.querySelector('.plateau'); return pl && pl.classList.contains('vue-feuille') ? 'feuille' : 'recit'; }
+function memoriserLecture(){
+  if(!$('jeu').classList.contains('on') || vueActuelle()!=='recit') return;
+  posVues.recit = window.scrollY; posVues.cle = clePara();
+  try{ localStorage.setItem(CLE_LECTURE, JSON.stringify({cle:posVues.cle, y:posVues.recit})); }catch(err){}
+}
+let minuterieLecture = null;
+window.addEventListener('scroll', ()=>{
+  clearTimeout(minuterieLecture);
+  minuterieLecture = setTimeout(memoriserLecture, 250);
+}, {passive:true});
+/* a la reprise d'une partie : retrouve l'endroit du texte ou l'on s'etait arrete */
+function restaurerLecture(){
+  let o = null;
+  try{ o = JSON.parse(localStorage.getItem(CLE_LECTURE) || 'null'); }catch(err){}
+  if(!o || o.cle !== clePara() || !o.y) return;
+  posVues.recit = o.y; posVues.cle = o.cle;
+  requestAnimationFrame(()=>window.scrollTo({top:o.y, behavior:'instant'}));
+}
 const ongletsMobile = $('onglets-mobile');
 if(ongletsMobile) ongletsMobile.addEventListener('click', e=>{
   const b = e.target.closest('.onglet');
   if(!b) return;
+  const avant = vueActuelle(), apres = b.dataset.vue==='feuille' ? 'feuille' : 'recit';
+  if(avant===apres) return;
+  if(avant==='recit'){ memoriserLecture(); } else { posVues.feuille = window.scrollY; }
   document.querySelectorAll('#onglets-mobile .onglet').forEach(x=>{
     const actif = x===b;
     x.classList.toggle('actif', actif);
     x.setAttribute('aria-selected', actif?'true':'false');
   });
-  document.querySelector('.plateau').classList.toggle('vue-feuille', b.dataset.vue==='feuille');
-  window.scrollTo({top:0, behavior:'instant'});
+  document.querySelector('.plateau').classList.toggle('vue-feuille', apres==='feuille');
+  const y = apres==='recit' ? (posVues.cle===clePara() ? posVues.recit : 0) : posVues.feuille;
+  requestAnimationFrame(()=>window.scrollTo({top:y, behavior:'instant'}));
 });
 document.querySelectorAll('.fond').forEach(f=>f.addEventListener('click', e=>{
   if(e.target===f && f.id==='fond-info'){ f.classList.remove('on'); window.__okInfo=null; window.__siOui=null; }
@@ -2485,6 +2515,7 @@ function configurerBoutonReprendre(){
       $('creation').style.display='none'; $('jeu').classList.add('on'); rendre();
       /* partie arrivee au tome 2 avant l'ajout du prologue : on le propose une fois */
       if(E.tome===2 && !E.prologueT2Vu) ouvrirPrologue();
+      else restaurerLecture();
     };
   } else {
     btn.style.display='none';
