@@ -612,11 +612,20 @@ function rendreBarreCompte(){
 }
 
 /* --- sauvegarde en cours : table "parties", une ligne par joueur --- */
-async function pousserSauvegarde(){
+const estPartie = o => !!(o && o.habilete && o.habilete.initiale);
+/* envoie la partie au cloud. Hors partie (ecran d'accueil), E est vide :
+   on envoie alors la partie gardee dans ce navigateur, jamais un etat vide,
+   sauf « vierge » = abandon volontaire de la partie (Recommencer). */
+async function pousserSauvegarde(vierge){
   if(!estConnecte()) return;
+  const base = (vierge || estPartie(E)) ? E : charger();
+  if(!estPartie(base) && !vierge) return;
   /* les points de sauvegarde voyagent dans la meme ligne, sous __points */
-  const etat = Object.assign({}, E, { __points: lirePoints() });
-  try{ await sb.from('parties').upsert({ user_id: session.user.id, etat, mis_a_jour: new Date().toISOString() }); }
+  const etat = Object.assign({}, base, { __points: lirePoints() });
+  try{
+    const { error } = await sb.from('parties').upsert({ user_id: session.user.id, etat, mis_a_jour: new Date().toISOString() });
+    if(error) console.warn('Sauvegarde cloud refusée :', error.message);
+  }
   catch(e){ /* pas de reseau : le local reste la source de verite, on retentera au prochain sauver() */ }
 }
 async function tirerSauvegarde(){
@@ -650,11 +659,14 @@ async function synchroniserApresConnexion(){
     ecrirePoints(fusionnerPoints(lirePoints(), sauvCloud.__points));
     delete sauvCloud.__points;
   }
-  if(sauvCloud && sauvCloud.habilete && sauvCloud.habilete.initiale){
+  /* on garde la partie la plus recente des deux (cloud ou ce navigateur) */
+  const local = charger();
+  const cloudPlusRecent = estPartie(sauvCloud) &&
+    (!estPartie(local) || (sauvCloud.majLe||0) >= (local.majLe||0));
+  if(cloudPlusRecent){
     localStorage.setItem(CLE, JSON.stringify(sauvCloud));
-  } else {
-    const local = charger();
-    if(local) pousserSauvegarde();
+  } else if(estPartie(local)){
+    pousserSauvegarde();
   }
   if(histCloud){
     const local = chargerHistoire();
@@ -664,7 +676,7 @@ async function synchroniserApresConnexion(){
     sauverHistoire(fusion.slice(0,300));
     aEnvoyer.forEach(pousserHistoriqueEntree);
   }
-  if(sauvCloud && sauvCloud.habilete && sauvCloud.habilete.initiale) pousserSauvegarde();
+  if(cloudPlusRecent) pousserSauvegarde();   // remonte les points de sauvegarde fusionnes
   statutCompte('');
   rendreBarreCompte();
   if(typeof configurerBoutonReprendre==='function') configurerBoutonReprendre();
@@ -957,7 +969,7 @@ function etatNeuf(){
 let E = etatNeuf();
 
 /* ---------- persistance (par navigateur, tolerante a l'echec) ---------- */
-function sauver(){ try{ localStorage.setItem(CLE, JSON.stringify(E)); }catch(e){} pousserSauvegarde(); }
+function sauver(){ if(estPartie(E)) E.majLe = Date.now(); try{ localStorage.setItem(CLE, JSON.stringify(E)); }catch(e){} pousserSauvegarde(); }
 function charger(){ try{ const b=localStorage.getItem(CLE); return b?JSON.parse(b):null; }catch(e){ return null; } }
 
 /* ============================================================
@@ -2490,7 +2502,7 @@ function reinitialiserPartie(){
   E = etatNeuf();
   try{ localStorage.removeItem(CLE); }catch(err){}
   if(estConnecte()){
-    pousserSauvegarde();   // etat vierge + points de sauvegarde conserves
+    pousserSauvegarde(true);   // etat vierge + points de sauvegarde conserves
   }
   tirage = null; tutoIndex = 0;
   $('jeu').classList.remove('on'); $('tutoriel').style.display='none';
