@@ -391,6 +391,25 @@ select{background:var(--voile); border:1px solid var(--brume); color:var(--ecume
 
 /* --- carte --- */
 .modale-carte{max-width:960px}
+.modale-puzzle{max-width:1100px; height:94vh; display:flex; flex-direction:column; padding:14px}
+.pz-barre{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; justify-content:space-between}
+.pz-outils{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+#pz-angle{width:120px}
+.pz-aide{margin:8px 0; font-size:13.5px}
+.pz-zone{flex:1; min-height:0; overflow:auto; border-radius:var(--rayon-m); background:#f4f1ea}
+.pz-plateau{position:relative; margin:0 auto; background:#f4f1ea;
+  background-image:linear-gradient(to bottom, transparent 74%, rgba(0,0,0,.05) 74%)}
+.pz-piece{position:absolute; left:0; top:0; touch-action:none; cursor:grab; user-select:none;
+  -webkit-user-drag:none; transform-origin:center center}
+.pz-piece.choisie{filter:drop-shadow(0 0 4px #c89a4e) drop-shadow(0 0 2px #c89a4e)}
+.pz-piece:active{cursor:grabbing}
+@media(max-width:520px){
+  .modale-puzzle{padding:10px; height:96vh}
+  .pz-barre{gap:6px}
+  .pz-outils .mini{padding:6px 9px; font-size:13px}
+  #pz-angle{width:90px}
+  .pz-aide{font-size:12.5px; margin:6px 0}
+}
 .dot-lieu{background:var(--laiton)}
 .dot-danger{background:var(--sang)}
 .dot-tresor{background:var(--jade)}
@@ -527,6 +546,25 @@ figure.illus figcaption{font-size:.85em;opacity:.75;margin-top:6px}
 <div class="fond" id="fond-combat"><div class="modale" id="m-combat"></div></div>
 <div class="fond" id="fond-info"><div class="modale" id="m-info"></div></div>
 <div class="fond" id="fond-histoire"><div class="modale" id="m-histoire"></div></div>
+<div class="fond" id="fond-puzzle"><div class="modale modale-puzzle" id="m-puzzle">
+  <div class="pz-barre">
+    <b class="pz-titre">Les pièces de métal</b>
+    <span class="pz-outils">
+      <button class="mini" id="pz-g90" title="Tourner de 90° à gauche">↺ 90°</button>
+      <button class="mini" id="pz-g" title="Tourner à gauche">↺</button>
+      <input type="range" id="pz-angle" min="0" max="359" step="1" value="0" aria-label="Angle de la pièce choisie">
+      <button class="mini" id="pz-d" title="Tourner à droite">↻</button>
+      <button class="mini" id="pz-d90" title="Tourner de 90° à droite">↻ 90°</button>
+    </span>
+    <span class="pz-outils">
+      <button class="mini" id="pz-zoom">🔍 Zoom</button>
+      <button class="mini" id="pz-reset">Remettre en place</button>
+      <button class="mini" id="pz-fermer">✕ Fermer</button>
+    </span>
+  </div>
+  <p class="aide pz-aide">Glissez une pièce pour la déplacer. Touchez-la pour la choisir, puis tournez-la avec le curseur ou les flèches. Quand le numéro apparaît, fermez et utilisez « 🔢 Le texte vous demande un calcul ? » pour vous y rendre.</p>
+  <div class="pz-zone" id="pz-zone"><div class="pz-plateau" id="pz-plateau"></div></div>
+</div></div>
 <div class="fond" id="fond-carte"><div class="modale modale-carte" id="m-carte"></div></div>
 <div class="fond" id="fond-repere"><div class="modale" id="m-repere"></div></div>
 <div class="fond" id="fond-auth"><div class="modale" id="m-auth">
@@ -1241,7 +1279,8 @@ function rendreRecit(){
   if(lab) lab.textContent = E.tome===2 ? 'Tome 2 · Paragraphe' : 'Paragraphe';
   $('recit').innerHTML = p.texte.split('\n\n').map(t=>`<p>${esc(t)}</p>`).join('')
     + (p.illustration ? `<figure class="illus"><img src="${esc(p.illustration)}" alt="${esc(p.illustration_legende||'Illustration')}" loading="lazy"><figcaption>${esc(p.illustration_legende||'')}</figcaption></figure>` : '')
-    + (p.illustration_manquante ? `<p class="aide">${esc(p.illustration_manquante)}</p>` : '');
+    + (p.illustration_manquante ? `<p class="aide">${esc(p.illustration_manquante)}</p>` : '')
+    + (E.tome===2 && E.paragraphe===91 ? `<p style="text-align:center"><button class="btn" data-act="puzzle">🧩 Assembler les pièces à l’écran</button></p>` : '');
   const bs = $('btn-sauver-point');
   if(bs) bs.disabled = !!E.termine;
   const bp = $('btn-precedent');
@@ -2098,6 +2137,7 @@ document.addEventListener('click', e=>{
   switch(a){
     case 'aller': aller(Number(b.dataset.n)); break;
     case 'tome2': passerAuTome2(Number(b.dataset.n)); break;
+    case 'puzzle': ouvrirPuzzle(); break;
     case 'prologue': ouvrirPrologue(); break;
     case 'retour-sort': { const r=E.retourSort.depuis; E.retourSort=null; aller(r); break; }
     case 'accepter-fin': mourir(''); break;
@@ -2325,6 +2365,93 @@ document.addEventListener('click', e=>{
       break;
   }
 });
+
+/* ============================================================
+   PUZZLE DU §91 (tome 2) : les pieces de metal a assembler
+   ============================================================ */
+const PUZZLE_91 = {"W": 1062, "H": 1482, "pieces": [{"f": "p01.webp", "x": 645, "y": 407, "w": 299, "h": 420}, {"f": "p02.webp", "x": 446, "y": 1062, "w": 393, "h": 216}, {"f": "p03.webp", "x": 120, "y": 689, "w": 317, "h": 275}, {"f": "p04.webp", "x": 154, "y": 1065, "w": 305, "h": 292}, {"f": "p05.webp", "x": 608, "y": 786, "w": 250, "h": 212}, {"f": "p06.webp", "x": 418, "y": 846, "w": 222, "h": 239}, {"f": "p07.webp", "x": 705, "y": 100, "w": 176, "h": 356}, {"f": "p08.webp", "x": 354, "y": 275, "w": 186, "h": 272}, {"f": "p09.webp", "x": 240, "y": 541, "w": 336, "h": 197}, {"f": "p10.webp", "x": 501, "y": 435, "w": 217, "h": 196}, {"f": "p11.webp", "x": 453, "y": 202, "w": 233, "h": 191}, {"f": "p12.webp", "x": 161, "y": 315, "w": 149, "h": 206}, {"f": "p13.webp", "x": 210, "y": 138, "w": 269, "h": 185}, {"f": "p14.webp", "x": 363, "y": 738, "w": 245, "h": 138}, {"f": "p15.webp", "x": 125, "y": 523, "w": 135, "h": 140}, {"f": "p16.webp", "x": 178, "y": 959, "w": 247, "h": 246}, {"f": "p17.webp", "x": 711, "y": 1165, "w": 218, "h": 165}, {"f": "p18.webp", "x": 832, "y": 949, "w": 90, "h": 220}, {"f": "p19.webp", "x": 563, "y": 640, "w": 122, "h": 113}, {"f": "p20.webp", "x": 827, "y": 714, "w": 96, "h": 189}, {"f": "p21.webp", "x": 243, "y": 493, "w": 166, "h": 118}, {"f": "p22.webp", "x": 640, "y": 985, "w": 74, "h": 142}, {"f": "p23.webp", "x": 419, "y": 1273, "w": 125, "h": 64}, {"f": "p24.webp", "x": 502, "y": 119, "w": 108, "h": 92}]};
+let pzEchelle = 1, pzZoom = false, pzChoix = null, pzZ = 10;
+function pzEtat(){
+  if(!E.puzzle91) E.puzzle91 = {};
+  return E.puzzle91;
+}
+function pzPos(i){
+  const p = PUZZLE_91.pieces[i], st = pzEtat()[i];
+  return st || {x:p.x, y:p.y, r:0};
+}
+function pzPlacer(el, i){
+  const q = pzPos(i), s = pzEchelle;
+  el.style.width = (PUZZLE_91.pieces[i].w*s)+'px';
+  el.style.transform = `translate(${q.x*s}px,${q.y*s}px) rotate(${q.r}deg)`;
+}
+function pzMesurer(){
+  const zone = $('pz-zone'), pl = $('pz-plateau');
+  const lw = zone.clientWidth - 2, lh = zone.clientHeight - 2;
+  const HT = PUZZLE_91.H * 1.35;   // table libre sous les pieces pour assembler
+  let s = Math.min(lw/PUZZLE_91.W, lh/HT);
+  if(pzZoom) s *= 2.2;
+  pzEchelle = s;
+  pl.style.width = (PUZZLE_91.W*s)+'px'; pl.style.height = (HT*s)+'px';
+  pl.querySelectorAll('.pz-piece').forEach(el=>pzPlacer(el, Number(el.dataset.i)));
+}
+function pzMajAngle(){
+  const r = pzChoix===null ? 0 : pzPos(pzChoix).r;
+  $('pz-angle').value = ((r%360)+360)%360;
+}
+function pzChoisir(i){
+  pzChoix = i;
+  document.querySelectorAll('.pz-piece').forEach(el=>el.classList.toggle('choisie', Number(el.dataset.i)===i));
+  pzMajAngle();
+}
+function pzTourner(delta, absolu){
+  if(pzChoix===null) return;
+  const q = Object.assign({}, pzPos(pzChoix));
+  q.r = absolu ? delta : (q.r + delta);
+  pzEtat()[pzChoix] = q;
+  pzPlacer(document.querySelector(`.pz-piece[data-i="${pzChoix}"]`), pzChoix);
+  pzMajAngle(); sauver();
+}
+function ouvrirPuzzle(){
+  const pl = $('pz-plateau');
+  pl.innerHTML = PUZZLE_91.pieces.map((p,i)=>
+    `<img class="pz-piece" data-i="${i}" src="tome2-puzzle-91/${p.f}" alt="pièce ${i+1}" draggable="false">`).join('');
+  $('fond-puzzle').classList.add('on');
+  pzChoix = null; pzMajAngle();
+  requestAnimationFrame(pzMesurer);
+  pl.querySelectorAll('.pz-piece').forEach(el=>{
+    let depart = null;
+    el.addEventListener('pointerdown', e=>{
+      e.preventDefault();
+      const i = Number(el.dataset.i);
+      pzChoisir(i); el.style.zIndex = ++pzZ;
+      const q = pzPos(i);
+      depart = {mx:e.clientX, my:e.clientY, x:q.x, y:q.y, r:q.r};
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove', e=>{
+      if(!depart) return;
+      const i = Number(el.dataset.i), s = pzEchelle;
+      const x = Math.max(-PUZZLE_91.pieces[i].w/2, Math.min(PUZZLE_91.W-PUZZLE_91.pieces[i].w/2, depart.x + (e.clientX-depart.mx)/s));
+      const y = Math.max(-PUZZLE_91.pieces[i].h/2, Math.min(PUZZLE_91.H*1.35-PUZZLE_91.pieces[i].h/2, depart.y + (e.clientY-depart.my)/s));
+      pzEtat()[i] = {x, y, r:depart.r};
+      pzPlacer(el, i);
+    });
+    const fin = ()=>{ if(depart){ depart = null; sauver(); } };
+    el.addEventListener('pointerup', fin);
+    el.addEventListener('pointercancel', fin);
+  });
+}
+$('pz-g').addEventListener('click', ()=>pzTourner(-3));
+$('pz-d').addEventListener('click', ()=>pzTourner(3));
+$('pz-g90').addEventListener('click', ()=>pzTourner(-90));
+$('pz-d90').addEventListener('click', ()=>pzTourner(90));
+$('pz-angle').addEventListener('input', e=>pzTourner(Number(e.target.value), true));
+$('pz-zoom').addEventListener('click', ()=>{ pzZoom = !pzZoom; $('pz-zoom').textContent = pzZoom ? '🔍 Vue entière' : '🔍 Zoom'; pzMesurer(); });
+$('pz-reset').addEventListener('click', ()=>confirmerAction('Remettre les pièces en place ?',
+  'Toutes les pièces retournent à leur position de départ.', ()=>{ E.puzzle91 = {}; sauver(); pzMesurer(); pzChoisir(null); }));
+$('pz-fermer').addEventListener('click', ()=>$('fond-puzzle').classList.remove('on'));
+window.addEventListener('resize', ()=>{ if($('fond-puzzle').classList.contains('on')) pzMesurer(); });
+
 /* ---------- position de lecture ----------
    Chaque vue (Récit / Feuille) garde sa propre position : revenir au récit
    après une modification sur la feuille reprend la lecture là où elle était.
