@@ -55,8 +55,22 @@ h1,h2,h3{font-weight:700; margin:0}
 }
 
 /* ---------- ecran creation ---------- */
-#creation{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 20px}
+#creation{min-height:100vh; display:flex; align-items:flex-start; justify-content:center;
+  padding:calc(18vh + 32px) 20px 32px; position:relative; isolation:isolate}
+/* paysage de l'Osmanlie en tete de l'accueil, fondu dans le fond de page */
+#creation::before{content:""; position:absolute; inset:0 0 auto 0; height:72vh; z-index:-1;
+  background:url("illus/osmanlie-nuit.webp") center 35% / cover no-repeat;
+  -webkit-mask-image:linear-gradient(to bottom,#000 0,#000 30%,transparent 100%);
+          mask-image:linear-gradient(to bottom,#000 0,#000 30%,transparent 100%);
+  opacity:.9}
+#creation .titre{color:#f3ead8; text-shadow:0 2px 14px rgba(0,0,0,.75)}
+#creation .exergue{color:#e9e2d2; text-shadow:0 1px 8px rgba(0,0,0,.8)}
+@media(min-width:900px){ #creation{padding-top:calc(24vh + 32px)} }
+.banniere{display:block; width:100%; max-height:260px; object-fit:cover; border-radius:var(--rayon-m);
+  margin:0 0 16px}
+figure.illus.haut{margin:0 0 20px}
 .carte-creation{max-width:640px; width:100%}
+#creation .des, #creation .de{backdrop-filter:blur(2px)}
 .titre{font-family:"UnifrakturMaguntia","Amiri",serif; font-weight:400;
   font-size:clamp(40px,10vw,84px); line-height:.92; letter-spacing:-.01em; margin-bottom:6px}
 .titre em{font-style:normal; color:var(--laiton)}
@@ -1277,9 +1291,12 @@ function rendreRecit(){
   $('pnum').textContent = E.paragraphe;
   const lab = document.querySelector('.entete-p .p-label');
   if(lab) lab.textContent = E.tome===2 ? 'Tome 2 · Paragraphe' : 'Paragraphe';
-  $('recit').innerHTML = p.texte.split('\n\n').map(t=>`<p>${esc(t)}</p>`).join('')
+  const illHaut = ILLUS[(E.tome||1)+':'+E.paragraphe];
+  $('recit').innerHTML = (illHaut && illHaut.haut ? figureIllus(illHaut, 'haut') : '')
+    + p.texte.split('\n\n').map(t=>`<p>${esc(t)}</p>`).join('')
     + (p.illustration ? `<figure class="illus"><img src="${esc(p.illustration)}" alt="${esc(p.illustration_legende||'Illustration')}" loading="lazy"><figcaption>${esc(p.illustration_legende||'')}</figcaption></figure>` : '')
     + (p.illustration_manquante ? `<p class="aide">${esc(p.illustration_manquante)}</p>` : '')
+    + (ILLUS[(E.tome||1)+':'+E.paragraphe] && !ILLUS[(E.tome||1)+':'+E.paragraphe].haut ? figureIllus(ILLUS[(E.tome||1)+':'+E.paragraphe]) : '')
     + (E.tome===2 && E.paragraphe===91 ? `<p style="text-align:center"><button class="btn" data-act="puzzle">🧩 Assembler les pièces à l’écran</button></p>` : '');
   const bs = $('btn-sauver-point');
   if(bs) bs.disabled = !!E.termine;
@@ -2369,6 +2386,18 @@ document.addEventListener('click', e=>{
 /* ============================================================
    PUZZLE DU §91 (tome 2) : les pieces de metal a assembler
    ============================================================ */
+/* illustrations de l'univers (livres et « La couronne, le sceptre et l'orbe »),
+   affichees a leur paragraphe ; haut = en tete du texte */
+const ILLUS = {
+  '1:1':   {src:'illus/varna.webp', leg:'Varna, la cité du Mur.', haut:true},
+  '1:12':  {src:'illus/t1-cite.webp', leg:''},
+  '1:153': {src:'illus/t1-ruines.webp', leg:''},
+  '2:169': {src:'illus/t2-paysage-169.webp', leg:''}
+};
+function figureIllus(x, cls){
+  return `<figure class="illus ${cls||''}"><img src="${esc(x.src)}" alt="${esc(x.leg||'Illustration')}" loading="lazy">`
+    + (x.leg ? `<figcaption>${esc(x.leg)}</figcaption>` : '') + `</figure>`;
+}
 const PUZZLE_91 = {"W": 1062, "H": 1482, "pieces": [{"f": "p01.webp", "x": 645, "y": 407, "w": 299, "h": 420}, {"f": "p02.webp", "x": 446, "y": 1062, "w": 393, "h": 216}, {"f": "p03.webp", "x": 120, "y": 689, "w": 317, "h": 275}, {"f": "p04.webp", "x": 154, "y": 1065, "w": 305, "h": 292}, {"f": "p05.webp", "x": 608, "y": 786, "w": 250, "h": 212}, {"f": "p06.webp", "x": 418, "y": 846, "w": 222, "h": 239}, {"f": "p07.webp", "x": 705, "y": 100, "w": 176, "h": 356}, {"f": "p08.webp", "x": 354, "y": 275, "w": 186, "h": 272}, {"f": "p09.webp", "x": 240, "y": 541, "w": 336, "h": 197}, {"f": "p10.webp", "x": 501, "y": 435, "w": 217, "h": 196}, {"f": "p11.webp", "x": 453, "y": 202, "w": 233, "h": 191}, {"f": "p12.webp", "x": 161, "y": 315, "w": 149, "h": 206}, {"f": "p13.webp", "x": 210, "y": 138, "w": 269, "h": 185}, {"f": "p14.webp", "x": 363, "y": 738, "w": 245, "h": 138}, {"f": "p15.webp", "x": 125, "y": 523, "w": 135, "h": 140}, {"f": "p16.webp", "x": 178, "y": 959, "w": 247, "h": 246}, {"f": "p17.webp", "x": 711, "y": 1165, "w": 218, "h": 165}, {"f": "p18.webp", "x": 832, "y": 949, "w": 90, "h": 220}, {"f": "p19.webp", "x": 563, "y": 640, "w": 122, "h": 113}, {"f": "p20.webp", "x": 827, "y": 714, "w": 96, "h": 189}, {"f": "p21.webp", "x": 243, "y": 493, "w": 166, "h": 118}, {"f": "p22.webp", "x": 640, "y": 985, "w": 74, "h": 142}, {"f": "p23.webp", "x": 419, "y": 1273, "w": 125, "h": 64}, {"f": "p24.webp", "x": 502, "y": 119, "w": 108, "h": 92}]};
 let pzEchelle = 1, pzZoom = false, pzChoix = null, pzZ = 10;
 function pzEtat(){
@@ -2576,7 +2605,8 @@ function rendreTutoriel(){
 
   let aide = '';
   if(s.titre === 'Avis aux héros !'){
-    aide = `<div class="tuto-aide">Bienvenue, ${esc(E.nom||'aventurier sans nom')}. Voici comment fonctionne votre feuille d’aventure — la vraie se trouve dans le panneau à droite, une fois en jeu.</div>`;
+    aide = `<img class="banniere" src="illus/varna.webp" alt="Varna">`
+      + `<div class="tuto-aide">Bienvenue, ${esc(E.nom||'aventurier sans nom')}. Voici comment fonctionne votre feuille d’aventure — la vraie se trouve dans le panneau à droite, une fois en jeu.</div>`;
   } else if(s.titre === 'Habileté, Endurance et Chance'){
     aide = `<div class="tuto-aide">Vos dés ont donné : Habileté ${E.habilete.initiale} · Endurance ${E.endurance.initiale} · Chance ${E.chance.initiale}. Ces trois nombres sont vos plafonds pour toute l’aventure.</div>`;
   } else if(s.titre === 'Maniement des armes'){
@@ -2595,7 +2625,7 @@ function rendreTutoriel(){
   } else if(s.titre === 'Avis à la population'){
     aide = `<div class="tuto-aide">Nom inscrit au registre : ${esc(E.nom||'—')}.</div>`;
   } else if(tutoMode==='lore' && tutoIndex===0){
-    aide = `<div class="tuto-aide">Tome 2 — Terres ardentes. Avant de reprendre la route, le livre rappelle l’histoire de l’Osmanlie et votre propre passé.</div>`;
+    aide = `<img class="banniere" src="illus/desert.webp" alt="Le désert de l’Osmanlie">` + `<div class="tuto-aide">Tome 2 — Terres ardentes. Avant de reprendre la route, le livre rappelle l’histoire de l’Osmanlie et votre propre passé.</div>`;
   }
 
   $('tuto-compte').textContent = `${tutoIndex+1} / ${regles.length}`;
