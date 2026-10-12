@@ -1291,12 +1291,12 @@ function rendreRecit(){
   $('pnum').textContent = E.paragraphe;
   const lab = document.querySelector('.entete-p .p-label');
   if(lab) lab.textContent = E.tome===2 ? 'Tome 2 · Paragraphe' : 'Paragraphe';
-  const illHaut = ILLUS[(E.tome||1)+':'+E.paragraphe];
-  $('recit').innerHTML = (illHaut && illHaut.haut ? figureIllus(illHaut, 'haut') : '')
+  const ills = [].concat(ILLUS[(E.tome||1)+':'+E.paragraphe] || []);
+  $('recit').innerHTML = ills.filter(x=>x.haut).map(x=>figureIllus(x, 'haut')).join('')
     + p.texte.split('\n\n').map(t=>`<p>${esc(t)}</p>`).join('')
     + (p.illustration ? `<figure class="illus"><img src="${esc(p.illustration)}" alt="${esc(p.illustration_legende||'Illustration')}" loading="lazy"><figcaption>${esc(p.illustration_legende||'')}</figcaption></figure>` : '')
     + (p.illustration_manquante ? `<p class="aide">${esc(p.illustration_manquante)}</p>` : '')
-    + (ILLUS[(E.tome||1)+':'+E.paragraphe] && !ILLUS[(E.tome||1)+':'+E.paragraphe].haut ? figureIllus(ILLUS[(E.tome||1)+':'+E.paragraphe]) : '')
+    + ills.filter(x=>!x.haut).map(x=>figureIllus(x)).join('')
     + (E.tome===2 && E.paragraphe===91 ? `<p style="text-align:center"><button class="btn" data-act="puzzle">🧩 Assembler les pièces à l’écran</button></p>` : '');
   const bs = $('btn-sauver-point');
   if(bs) bs.disabled = !!E.termine;
@@ -2387,12 +2387,28 @@ document.addEventListener('click', e=>{
    PUZZLE DU §91 (tome 2) : les pieces de metal a assembler
    ============================================================ */
 /* illustrations de l'univers (livres et « La couronne, le sceptre et l'orbe »),
-   affichees a leur paragraphe ; haut = en tete du texte */
+   affichees a leur paragraphe ; haut = en tete du texte (vue d'arrivee),
+   sinon apres le texte (le lieu se revele en cours de paragraphe).
+   Une entree peut etre un tableau quand plusieurs images vont au meme paragraphe. */
 const ILLUS = {
+  /* tome 1 */
   '1:1':   {src:'illus/varna.webp', leg:'Varna, la cité du Mur.', haut:true},
   '1:12':  {src:'illus/t1-cite.webp', leg:''},
-  '1:153': {src:'illus/t1-ruines.webp', leg:''},
-  '2:169': {src:'illus/t2-paysage-169.webp', leg:''}
+  '1:14':  {src:'illus/t1-sanakkale.webp', leg:'Sanakkale, entre la mer Ancienne et la mer Marmoréenne.', haut:true},
+  '1:50':  {src:'illus/t1-hameau-torrent.webp', leg:'Le hameau abandonné du torrent.', haut:true},
+  '1:82':  {src:'illus/t1-ulassi-village.webp', leg:'Le village des pêcheurs ulassis.', haut:true},
+  '1:87':  {src:'illus/t1-croisee.webp', leg:'La Croisée des chemins et ses trois temples.', haut:true},
+  '1:91':  {src:'illus/t1-forteresse-renards.webp', leg:'La cour de la forteresse des Renards.'},
+  '1:153': [{src:'illus/t1-ruines.webp', leg:''},
+            {src:'illus/t1-treya.webp', leg:'Treya, la cité engloutie.'}],
+  '1:238': {src:'illus/t1-ulassi-dagan.webp', leg:'Dagan apparaît dans les flammes.'},
+  '1:268': {src:'illus/t1-varna-mur.webp', leg:'La Garde de Varna devant le Mur.', haut:true},
+  /* tome 2 */
+  '2:169': {src:'illus/t2-paysage-169.webp', leg:''},
+  '2:185': {src:'illus/t2-mines-gonen.webp', leg:'Les forges des Mines du Gonen.'},
+  '2:214': {src:'illus/t2-cite-nok.webp', leg:'La cité engloutie du peuple Nok.'},
+  '2:271': {src:'illus/t2-ruines-puits.webp', leg:'Les ruines du puits.'},
+  '2:286': {src:'illus/t2-biga.webp', leg:'Biga, l’ancienne capitale.'}
 };
 function figureIllus(x, cls){
   return `<figure class="illus ${cls||''}"><img src="${esc(x.src)}" alt="${esc(x.leg||'Illustration')}" loading="lazy">`
