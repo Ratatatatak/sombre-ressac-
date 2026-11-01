@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sombres Ressacs</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b1318" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#dfe5e3" media="(prefers-color-scheme: light)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ressacs">
+<link rel="icon" type="image/png" sizes="192x192" href="icones/icone-192.png">
+<link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Barlow+Semi+Condensed:wght@400;500;600&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
@@ -622,6 +630,9 @@ function themeActuel(){
 function majBoutonTheme(){
   const b = $('btn-theme'); if(!b) return;
   b.textContent = themeActuel()==='dark' ? '☀️ Clair' : '🌙 Sombre';
+  /* barre d'état du téléphone assortie au thème choisi */
+  const coul = themeActuel()==='dark' ? '#0b1318' : '#dfe5e3';
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', coul));
 }
 function appliquerThemeInitial(){
   try{
@@ -2764,6 +2775,14 @@ $('btn-theme').addEventListener('click', basculerTheme);
 
 /* repliage/depliage de la feuille d'aventure : suit le passage desktop <-> mobile */
 MQ_LARGE.addEventListener('change', ()=>{ if($('jeu').classList.contains('on')) rendreFeuille(); });
+</script>
+<script>
+/* Application installable et jouable hors-ligne (voir sw.js). */
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service worker :', err));
+  });
+}
 </script>
 </body>
 </html>
